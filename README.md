@@ -1,4 +1,4 @@
-# @kukux/admin-kit
+# @cortejojicoy/admin-kit
 
 A pluggable Next.js 16 admin panel kit. Drop in a config, get an authenticated dashboard with a customizable sidebar, JWT/OAuth/custom auth, and modules.
 
@@ -12,9 +12,9 @@ A pluggable Next.js 16 admin panel kit. Drop in a config, get an authenticated d
 ## Install
 
 ```bash
-pnpm add @kukux/admin-kit
+pnpm add @cortejojicoy/admin-kit
 # or
-npm install @kukux/admin-kit
+npm install @cortejojicoy/admin-kit
 ```
 
 Peer deps (must be installed in the consumer): `next@>=16`, `react@>=19`, `react-dom@>=19`.
@@ -23,7 +23,7 @@ Peer deps (must be installed in the consumer): `next@>=16`, `react@>=19`, `react
 
 ```ts
 // admin.config.ts
-import { defineAdminConfig } from '@kukux/admin-kit'
+import { defineAdminConfig } from '@cortejojicoy/admin-kit'
 
 export const adminConfig = defineAdminConfig({
   app: { name: 'Acme Admin' },
@@ -59,9 +59,9 @@ export const adminConfig = defineAdminConfig({
 
 ```tsx
 // app/layout.tsx
-import { AdminProvider, AdminLayout, AppLink, useAppPathname } from '@kukux/admin-kit/client'
+import { AdminProvider, AdminLayout, AppLink, useAppPathname } from '@cortejojicoy/admin-kit/client'
 import { adminConfig } from '@/admin.config'
-import { resolveConfig } from '@kukux/admin-kit'
+import { resolveConfig } from '@cortejojicoy/admin-kit'
 
 const resolved = resolveConfig(adminConfig)
 
@@ -91,7 +91,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 ```tsx
 // pages/_app.tsx
-import { AdminProvider } from '@kukux/admin-kit/client'
+import { AdminProvider } from '@cortejojicoy/admin-kit/client'
 import { adminConfig } from '@/admin.config'
 
 export default function App({ Component, pageProps }) {
@@ -103,8 +103,8 @@ export default function App({ Component, pageProps }) {
 }
 
 // pages/dashboard.tsx
-import { withAdminLayout } from '@kukux/admin-kit/client'
-import { resolveConfig } from '@kukux/admin-kit'
+import { withAdminLayout } from '@cortejojicoy/admin-kit/client'
+import { resolveConfig } from '@cortejojicoy/admin-kit'
 import { adminConfig } from '@/admin.config'
 
 function DashboardPage() { return <div>Hello</div> }
@@ -115,7 +115,7 @@ export default withAdminLayout(DashboardPage, { config: resolveConfig(adminConfi
 
 ```ts
 // middleware.ts (consumer root)
-import { createAdminMiddleware } from '@kukux/admin-kit/middleware'
+import { createAdminMiddleware } from '@cortejojicoy/admin-kit/middleware'
 import { adminConfig } from './admin.config'
 
 export default createAdminMiddleware(adminConfig)
@@ -126,7 +126,7 @@ export const config = { matcher: ['/((?!_next|api/auth|favicon).*)'] }
 
 ```ts
 // app/api/me/route.ts
-import { getServerSession } from '@kukux/admin-kit/server'
+import { getServerSession } from '@cortejojicoy/admin-kit/server'
 import { adminConfig } from '@/admin.config'
 
 export async function GET(req: Request) {
@@ -139,15 +139,15 @@ export async function GET(req: Request) {
 
 | Sub-path                          | Purpose                                                |
 | --------------------------------- | ------------------------------------------------------ |
-| `@kukux/admin-kit`                | Config helpers + types (safe everywhere)              |
-| `@kukux/admin-kit/client`         | React components & hooks (client components)          |
-| `@kukux/admin-kit/server`         | `getServerSession`, `verifyJWT`, cookie helpers       |
-| `@kukux/admin-kit/middleware`     | `createAdminMiddleware` (edge-safe)                   |
+| `@cortejojicoy/admin-kit`                | Config helpers + types (safe everywhere)              |
+| `@cortejojicoy/admin-kit/client`         | React components & hooks (client components)          |
+| `@cortejojicoy/admin-kit/server`         | `getServerSession`, `verifyJWT`, cookie helpers       |
+| `@cortejojicoy/admin-kit/middleware`     | `createAdminMiddleware` (edge-safe)                   |
 
 ## Modules
 
 ```ts
-import type { AdminModule } from '@kukux/admin-kit'
+import type { AdminModule } from '@cortejojicoy/admin-kit'
 
 export const billingModule: AdminModule = {
   id: 'billing',
@@ -222,7 +222,7 @@ These wire into npm's `version` lifecycle:
 
 ## Publishing to npm
 
-`@kukux/admin-kit` is a **scoped** package, so the first publish needs `--access public`:
+`@cortejojicoy/admin-kit` is a **scoped** package, so the first publish needs `--access public`:
 
 ```bash
 # one-time
@@ -250,12 +250,12 @@ The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml). It's
 
 **Setup (one-time):**
 
-1. **npmjs.com → Trusted Publishers** (under your org `@kukux` or directly on the package settings once it exists).
+1. **npmjs.com → Trusted Publishers** (under your org `@cortejojicoy` or directly on the package settings once it exists).
    Add a new GitHub Actions trusted publisher:
 
    | Field | Value |
    | --- | --- |
-   | Package | `@kukux/admin-kit` |
+   | Package | `@cortejojicoy/admin-kit` |
    | Organization/user | (your GitHub username/org owning the repo) |
    | Repository | `admin-kit` |
    | Workflow filename | `ci.yml` |

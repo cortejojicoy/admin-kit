@@ -2,7 +2,7 @@
  * Edge-safe middleware factory. Mount in the consumer's `middleware.ts`:
  *
  *   // middleware.ts (consumer)
- *   import { createAdminMiddleware } from '@kukux/admin-kit/middleware'
+ *   import { createAdminMiddleware } from '@cortejojicoy/admin-kit/middleware'
  *   import { adminConfig } from './admin.config'
  *
  *   export default createAdminMiddleware(adminConfig)

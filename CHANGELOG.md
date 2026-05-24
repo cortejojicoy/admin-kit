@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@kukux/admin-kit` will be documented in this file.
+All notable changes to `@cortejojicoy/admin-kit` will be documented in this file.
 Versioning follows [Semantic Versioning](https://semver.org/):
 
 - **PATCH** — bug fix, no API change (consumers auto-update safely)

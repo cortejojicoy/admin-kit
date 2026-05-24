@@ -68,5 +68,5 @@ npm publish --access public
 
 NEW="$(node -p "require('./package.json').version")"
 echo
-echo "released @kukux/admin-kit@$NEW"
+echo "released @cortejojicoy/admin-kit@$NEW"
 echo "tag pushed: v$NEW"

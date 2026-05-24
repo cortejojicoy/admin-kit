@@ -4,7 +4,7 @@
  * `app/(admin)/layout.tsx` directly.
  *
  * Usage (pages/):
- *   import { withAdminLayout } from '@kukux/admin-kit'
+ *   import { withAdminLayout } from '@cortejojicoy/admin-kit'
  *   function DashboardPage() { ... }
  *   export default withAdminLayout(DashboardPage, { title: 'Dashboard' })
  */

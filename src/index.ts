@@ -1,9 +1,9 @@
 /**
  * Main entry — re-exports the most-used config + type surface.
  * Heavy / runtime-sensitive code is split into sub-paths:
- *   '@kukux/admin-kit/client'     — React components & hooks (use client)
- *   '@kukux/admin-kit/server'     — server-only helpers (getServerSession, verifyJWT)
- *   '@kukux/admin-kit/middleware' — edge-safe middleware factory
+ *   '@cortejojicoy/admin-kit/client'     — React components & hooks (use client)
+ *   '@cortejojicoy/admin-kit/server'     — server-only helpers (getServerSession, verifyJWT)
+ *   '@cortejojicoy/admin-kit/middleware' — edge-safe middleware factory
  */
 
 export { defineAdminConfig } from './config/defineConfig'

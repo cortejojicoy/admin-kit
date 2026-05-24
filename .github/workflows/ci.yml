@@ -286,7 +286,7 @@ jobs:
             if [[ "${{ inputs.dry_run }}" == "true" ]]; then
               echo "- **dry run** — nothing was pushed or published"
             else
-              echo "- published \`@kukux/admin-kit@${{ steps.bump.outputs.version }}\`"
+              echo "- published \`@cortejojicoy/admin-kit@${{ steps.bump.outputs.version }}\`"
               echo "- tag \`v${{ steps.bump.outputs.version }}\` pushed"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,5 +1,5 @@
 {
-  "name": "@kukux/admin-kit",
+  "name": "@cortejojicoy/admin-kit",
   "version": "0.1.0",
   "description": "Next.js 16 admin panel kit — pluggable auth (JWT/OAuth/custom), customizable sidebar, modules, and components. Works with App Router and Pages Router.",
   "type": "module",
@@ -96,10 +96,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kukux/admin-kit.git"
+    "url": "git+https://github.com/cortejojicoy/admin-kit.git"
   },
   "bugs": {
-    "url": "https://github.com/kukux/admin-kit/issues"
+    "url": "https://github.com/cortejojicoy/admin-kit/issues"
   },
-  "homepage": "https://github.com/kukux/admin-kit#readme"
+  "homepage": "https://github.com/cortejojicoy/admin-kit#readme"
 }
