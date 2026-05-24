@@ -238,29 +238,59 @@ npm publish --access public            # or: npm run publish:npm
 
 ### CI/CD (GitHub Actions)
 
-The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml) and has three paths:
+The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml). It's **push-driven**: every commit to `main` auto-publishes a new version.
 
-| Trigger                                | What happens                                                |
-| -------------------------------------- | ----------------------------------------------------------- |
-| Push or PR on `main`                   | `verify` job: typecheck + build + `npm pack --dry-run`      |
-| Push of a `v*.*.*` tag                 | `verify` then `publish` to npm + GitHub release             |
-| Manual `workflow_dispatch` w/ bump arg | `verify` then `release` (bump + tag + push + publish in CI) |
+| Trigger                                          | What happens                                                |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| `push` to `main` (normal commit)                 | `verify` + `release-on-push` → bump + tag + publish to npm  |
+| `push` to `main` (release commit, has `[skip ci]`) | nothing — loop guard                                      |
+| `pull_request` to `main`                         | `verify` only — never publishes                             |
+| `push` of a `v*.*.*` tag                         | `verify` + `publish-on-tag` → publish that tag's version    |
+| `workflow_dispatch` (manual)                     | `verify` + `release-on-push` with chosen bump               |
 
 **Setup (one-time):**
 
 1. Generate an [npm automation token](https://docs.npmjs.com/creating-and-viewing-access-tokens) (granular, scope `@kukux`, publish-only).
 2. In the GitHub repo: `Settings → Secrets and variables → Actions → New repository secret` → name it `NPM_TOKEN`.
-3. `Settings → Actions → General → Workflow permissions` → enable **Read and write** (so the dispatch job can push the bump commit and tag).
+3. `Settings → Actions → General → Workflow permissions` → enable **Read and write** (so CI can push the bump commit and tag).
 
-**Cutting a release (three equivalent paths):**
+### How the bump size is chosen
 
-- **Local script:** `./scripts/release.sh minor` — bumps locally, pushes tag, CI publishes on the tag.
-- **CI-only:** GitHub UI → Actions → `ci` → `Run workflow` → choose `patch`/`minor`/`major`. CI bumps, tags, pushes, publishes — your laptop never sees an npm token.
-- **Manual tag:** `git tag v0.2.0 && git push origin v0.2.0`. CI syncs `package.json` to the tag and publishes. Use this when you've already committed everything and just want to mint a version.
+For each push to `main`, CI reads the head commit message and picks a bump level. Precedence (first match wins):
 
-The **git tag is the source of truth**. When CI publishes from a tag, it overwrites `package.json` version in the runner workspace to match the tag, then publishes. So `package.json` in the repo can lag behind the latest published version — that's fine; the tag is what matters.
+1. **`workflow_dispatch` input** — the dropdown you pick in the UI overrides everything.
+2. **Explicit tag in the message:** `[major]`, `[minor]`, or `[patch]` anywhere in the commit.
+3. **Conventional commits:**
+   - `feat!: ...` or contains `BREAKING CHANGE` → **major**
+   - `feat: ...` / `feat(scope): ...` → **minor**
+4. **Default** → **patch**
 
-The dispatch job has a `dry_run` toggle that runs through the full lifecycle (preversion → version → postversion) without pushing tags or publishing — useful for verifying the changelog promotion before going live.
+Examples:
+
+| Commit message                              | Bump   |
+| ------------------------------------------- | ------ |
+| `fix: race in sidebar collapse`             | patch  |
+| `chore: bump deps`                          | patch  |
+| `feat: add OAuth callback handler`          | minor  |
+| `feat(auth): GitHub provider`               | minor  |
+| `feat!: drop AdminProvider props`           | major  |
+| `refactor: rewrite layout [minor]`          | minor (override) |
+| `docs: tweak readme [skip release]`         | **no release** |
+
+### Opting out per-commit
+
+Include `[skip release]` anywhere in the commit message and that push won't publish. Use it for README/docs/CI tweaks that shouldn't mint a version.
+
+### The other two paths (kept as escape hatches)
+
+- **Manual tag** — `git tag v0.2.0 && git push origin v0.2.0`. CI syncs `package.json` to the tag and publishes. Useful if you bumped locally with [`./scripts/release.sh`](scripts/release.sh) or want to ship an exact version.
+- **Manual dispatch** — Actions tab → `ci` → **Run workflow** → pick the bump. Has a `dry_run` toggle for rehearsals.
+
+In all three paths the **git tag is the source of truth**; `package.json` version in `main` can lag behind the latest npm version when CI publishes from a tag without committing back.
+
+### Loop prevention
+
+CI's release commit message is `chore(release): vX.Y.Z [skip ci]`. GitHub honors `[skip ci]` and won't re-trigger the workflow. As a belt-and-suspenders measure, the `release-on-push` job also has an `if:` that skips messages starting with `chore(release):` — so even if `[skip ci]` is stripped somehow, the loop still can't form.
 
 ## What gets pushed where
 

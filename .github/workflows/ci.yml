@@ -1,12 +1,24 @@
 name: ci
 
-# Three triggers, three paths through this workflow:
-#   1. push/PR on main          → `verify` only (typecheck + build).
-#   2. push of a v*.*.* tag     → `verify` + `publish` (publish-only path,
-#                                 used when you bumped locally via
-#                                 scripts/release.sh).
-#   3. manual `workflow_dispatch` with a bump input → `verify` + `release`
-#                                 (CI does the bump, tags, pushes, publishes).
+# Push-driven releases. Every push to `main` (that isn't a release commit
+# itself) will: verify → bump → tag → publish to npm.
+#
+# Trigger map:
+#   push to main (normal commit)   → verify + release-on-push  (auto-publish)
+#   push to main (release commit)  → nothing                   (loop guard)
+#   push of a v*.*.* tag           → verify + publish-on-tag   (manual tag)
+#   PR to main                     → verify only
+#   workflow_dispatch              → verify + release-on-push  (manual bump)
+#
+# Bump type inference from the head commit message:
+#   "feat!: ..." or contains "BREAKING CHANGE"  → major
+#   "feat: ..." or "feat(scope): ..."           → minor
+#   anything else (fix:, chore:, docs:, etc.)   → patch
+#
+# Per-commit overrides (anywhere in the message):
+#   [skip release]   → bump+publish are skipped for this push
+#   [major] [minor] [patch] → force a specific bump (wins over inference)
+
 on:
   push:
     branches: [main]
@@ -16,13 +28,13 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Version bump (semver)'
+        description: 'Force version bump (overrides commit-message inference)'
         required: true
         type: choice
         options: [patch, minor, major]
         default: patch
       dry_run:
-        description: 'Dry run (skip npm publish + git push)'
+        description: 'Dry run (skip publish + tag push)'
         required: false
         type: boolean
         default: false
@@ -74,18 +86,18 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 2. Publish-only — fires when a v*.*.* tag is pushed (typically by
-  #    scripts/release.sh from a developer's machine). Skips the bump,
-  #    re-builds in a clean runner, and publishes.
+  # 2. Publish-only — fires when a v*.*.* tag is pushed (e.g. from
+  #    scripts/release.sh on a developer's machine). Reads version from the
+  #    tag and publishes; does not commit anything back.
   # ---------------------------------------------------------------------------
-  publish:
+  publish-on-tag:
     name: publish (tag-triggered)
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # only needed if publishConfig.provenance is enabled
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -102,19 +114,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Tag is the source of truth — sync package.json to whatever the tag says.
-      # The change is only in the CI workspace; nothing is pushed back to main.
-      #
-      # We use `npm pkg set` (not `npm version`) because `npm version` still
-      # fires the preversion/version/postversion lifecycle hooks even with
-      # --no-git-tag-version, and our postversion does `git push --follow-tags`,
-      # which fails in detached-HEAD tag checkouts. `npm pkg set` is a plain
-      # file edit — no hooks, no git side effects.
+      # `npm pkg set` is a flat field edit — no lifecycle hooks fire, so the
+      # postversion `git push` (which would fail in detached-HEAD tag checkout)
+      # is never triggered.
       - name: Sync package.json version from tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
-            echo "::error::tag '$GITHUB_REF_NAME' is not a valid semver (expected vMAJOR.MINOR.PATCH)"
+            echo "::error::tag '$GITHUB_REF_NAME' is not a valid semver"
             exit 1
           fi
           PKG="$(node -p "require('./package.json').version")"
@@ -139,18 +146,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
-  # 3. Release — manual dispatch. Runs the same lifecycle as the local
-  #    scripts/release.sh (preversion → version → postversion) entirely in
-  #    CI, then publishes. Use this when you want to release without ever
-  #    touching the registry from your laptop.
+  # 3. Release-on-push — fires on every push to main that isn't a release
+  #    commit, AND on workflow_dispatch. Determines bump from the commit
+  #    message (or the dispatch input), bumps + tags + pushes + publishes.
   # ---------------------------------------------------------------------------
-  release:
-    name: release (dispatch)
-    if: github.event_name == 'workflow_dispatch'
+  release-on-push:
+    name: release (push to main)
+    if: |
+      (github.event_name == 'push'
+        && github.ref == 'refs/heads/main'
+        && !startsWith(github.event.head_commit.message, 'chore(release):')
+        && !contains(github.event.head_commit.message, '[skip release]'))
+      || github.event_name == 'workflow_dispatch'
     needs: verify
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # bump commit + tag push
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -176,19 +187,48 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # `npm version <bump>` triggers our preversion (typecheck+build),
-      # version (promote CHANGELOG via scripts/update-changelog.mjs),
-      # and postversion (git push --follow-tags) hooks defined in package.json.
-      #
-      # We override postversion via env in dry-run mode so nothing leaves CI.
-      - name: Bump version (${{ inputs.bump }})
+      # Decide which semver level to bump. Precedence:
+      #   1. workflow_dispatch input (explicit)
+      #   2. [major] / [minor] / [patch] tag anywhere in the commit message
+      #   3. conventional-commits style ("feat!:" / "BREAKING CHANGE" / "feat:")
+      #   4. default: patch
+      - name: Determine bump type
+        id: bump_type
+        run: |
+          MSG="${{ github.event.head_commit.message || '' }}"
+          DISPATCH_BUMP="${{ inputs.bump || '' }}"
+
+          if [[ -n "$DISPATCH_BUMP" ]]; then
+            BUMP="$DISPATCH_BUMP"
+            REASON="workflow_dispatch input"
+          elif [[ "$MSG" == *"[major]"* ]]; then
+            BUMP=major; REASON="[major] tag in commit message"
+          elif [[ "$MSG" == *"[minor]"* ]]; then
+            BUMP=minor; REASON="[minor] tag in commit message"
+          elif [[ "$MSG" == *"[patch]"* ]]; then
+            BUMP=patch; REASON="[patch] tag in commit message"
+          elif [[ "$MSG" =~ ^[a-zA-Z]+(\([^)]*\))?!:|BREAKING[[:space:]]CHANGE ]]; then
+            BUMP=major; REASON="breaking change marker"
+          elif [[ "$MSG" =~ ^feat(\([^)]*\))?: ]]; then
+            BUMP=minor; REASON="feat: prefix"
+          else
+            BUMP=patch; REASON="default (no override or feat:/breaking)"
+          fi
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "::notice::bump=$BUMP — $REASON"
+
+      # `[skip ci]` in the release commit message is the primary loop guard:
+      # GitHub will NOT re-trigger this workflow when it sees that token.
+      # The job-level `if:` is a belt-and-suspenders backup.
+      - name: Bump, commit, tag
         id: bump
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             npm pkg delete scripts.postversion
-            echo "::warning::dry-run requested — postversion hook removed; Publish to npm and Create GitHub release steps will be SKIPPED"
+            echo "::warning::dry-run — postversion hook removed, push+publish steps will be skipped"
           fi
-          npm version "${{ inputs.bump }}" -m "chore(release): v%s"
+          npm version "${{ steps.bump_type.outputs.bump }}" -m "chore(release): v%s [skip ci]"
           NEW="$(node -p "require('./package.json').version")"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
@@ -211,11 +251,14 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Release v${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "**Dry run** — nothing was pushed or published." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Published \`@kukux/admin-kit@${{ steps.bump.outputs.version }}\` to npm." >> "$GITHUB_STEP_SUMMARY"
-            echo "Tag \`v${{ steps.bump.outputs.version }}\` pushed." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "## Release v${{ steps.bump.outputs.version }}"
+            echo ""
+            echo "- bump: \`${{ steps.bump_type.outputs.bump }}\`"
+            if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+              echo "- **dry run** — nothing was pushed or published"
+            else
+              echo "- published \`@kukux/admin-kit@${{ steps.bump.outputs.version }}\`"
+              echo "- tag \`v${{ steps.bump.outputs.version }}\` pushed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
