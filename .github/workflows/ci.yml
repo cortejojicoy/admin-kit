@@ -169,25 +169,25 @@ jobs:
       # and postversion (git push --follow-tags) hooks defined in package.json.
       #
       # We override postversion via env in dry-run mode so nothing leaves CI.
-      - name: Bump version (${{ github.event.inputs.bump }})
+      - name: Bump version (${{ inputs.bump }})
         id: bump
         run: |
-          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             npm pkg delete scripts.postversion
-            echo "dry-run: postversion hook removed"
+            echo "::warning::dry-run requested — postversion hook removed; Publish to npm and Create GitHub release steps will be SKIPPED"
           fi
-          npm version "${{ github.event.inputs.bump }}" -m "chore(release): v%s"
+          npm version "${{ inputs.bump }}" -m "chore(release): v%s"
           NEW="$(node -p "require('./package.json').version")"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
-        if: github.event.inputs.dry_run != 'true'
+        if: ${{ inputs.dry_run != true }}
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
-        if: github.event.inputs.dry_run != 'true'
+        if: ${{ inputs.dry_run != true }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.bump.outputs.version }}
@@ -201,7 +201,7 @@ jobs:
         run: |
           echo "## Release v${{ steps.bump.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "**Dry run** — nothing was pushed or published." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Published \`@kukux/admin-kit@${{ steps.bump.outputs.version }}\` to npm." >> "$GITHUB_STEP_SUMMARY"
