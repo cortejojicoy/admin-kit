@@ -202,9 +202,31 @@ jobs:
       #   4. default: patch
       - name: Determine bump type
         id: bump_type
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          DISPATCH_BUMP: ${{ inputs.bump }}
         run: |
-          MSG="${{ github.event.head_commit.message || '' }}"
-          DISPATCH_BUMP="${{ inputs.bump || '' }}"
+          # Pull message via env (not interpolation) so newlines and quotes
+          # never break shell parsing.
+          MSG="${MSG:-}"
+          DISPATCH_BUMP="${DISPATCH_BUMP:-}"
+
+          # Pick the "effective" subject for prefix matching.
+          # For merge commits (`Merge pull request #N from ...`), GitHub puts
+          # the PR title as the message body — use the first non-empty body
+          # line as the subject instead.
+          FIRST_LINE="${MSG%%$'\n'*}"
+          if [[ "$FIRST_LINE" == "Merge pull request"* ]]; then
+            EFFECTIVE="$(printf '%s\n' "$MSG" | awk 'NR>1 && NF { print; exit }')"
+          else
+            EFFECTIVE="$FIRST_LINE"
+          fi
+          echo "effective subject: ${EFFECTIVE:-<empty>}"
+
+          # Store regexes in variables so bash's [[ ]] parser doesn't try to
+          # interpret `(`, `)`, `|` as conditional operators.
+          BREAKING_RE='^[a-zA-Z]+(\([^)]+\))?!:|BREAKING[[:space:]]+CHANGE'
+          FEAT_RE='^feat(\([^)]+\))?:'
 
           if [[ -n "$DISPATCH_BUMP" ]]; then
             BUMP="$DISPATCH_BUMP"
@@ -215,9 +237,9 @@ jobs:
             BUMP=minor; REASON="[minor] tag in commit message"
           elif [[ "$MSG" == *"[patch]"* ]]; then
             BUMP=patch; REASON="[patch] tag in commit message"
-          elif [[ "$MSG" =~ ^[a-zA-Z]+(\([^)]*\))?!:|BREAKING[[:space:]]CHANGE ]]; then
+          elif [[ "$EFFECTIVE" =~ $BREAKING_RE ]]; then
             BUMP=major; REASON="breaking change marker"
-          elif [[ "$MSG" =~ ^feat(\([^)]*\))?: ]]; then
+          elif [[ "$EFFECTIVE" =~ $FEAT_RE ]]; then
             BUMP=minor; REASON="feat: prefix"
           else
             BUMP=patch; REASON="default (no override or feat:/breaking)"
