@@ -1,6 +1,6 @@
 {
   "name": "@cortejojicoy/admin-kit",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Next.js 16 admin panel kit — pluggable auth (JWT/OAuth/custom), customizable sidebar, modules, and components. Works with App Router and Pages Router.",
   "type": "module",
   "main": "./dist/index.js",
@@ -56,9 +56,15 @@
     "react-dom": ">=19.0.0"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": false },
-    "react": { "optional": false },
-    "react-dom": { "optional": false }
+    "next": {
+      "optional": false
+    },
+    "react": {
+      "optional": false
+    },
+    "react-dom": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
