@@ -1,16 +1,29 @@
 /**
  * Edge-safe JWT verification using the Web Crypto API.
- * Supports HS256 / HS384 / HS512. For RS*/ ES* algorithms, plug in `jose`
- * via the `verify` option on createAdminMiddleware (custom verifier).
+ * Supports HS256 / HS384 / HS512. For RS-family or ES-family algorithms,
+ * plug in `jose` via the `verify` option on createAdminMiddleware
+ * (custom verifier).
  */
 
 const enc = new TextEncoder()
 
-function base64UrlDecode(input: string): Uint8Array {
+/**
+ * Web Crypto's `BufferSource` requires `Uint8Array<ArrayBuffer>`. Newer TS
+ * lib types widen `TextEncoder.encode()` / typed arrays to `ArrayBufferLike`,
+ * which leaks `SharedArrayBuffer` into the type. Copy into a fresh ArrayBuffer
+ * so the call sites typecheck cleanly without `as` casts.
+ */
+function toAB(view: Uint8Array): ArrayBuffer {
+  const buf = new ArrayBuffer(view.byteLength)
+  new Uint8Array(buf).set(view)
+  return buf
+}
+
+function base64UrlDecode(input: string): Uint8Array<ArrayBuffer> {
   const pad = input.length % 4 === 0 ? '' : '='.repeat(4 - (input.length % 4))
   const b64 = (input + pad).replace(/-/g, '+').replace(/_/g, '/')
   const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary')
-  const out = new Uint8Array(bin.length)
+  const out = new Uint8Array(new ArrayBuffer(bin.length))
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
   return out
 }
@@ -56,13 +69,13 @@ export async function verifyJWT(token: string, secret: string): Promise<VerifyRe
 
   const key = await crypto.subtle.importKey(
     'raw',
-    enc.encode(secret),
+    toAB(enc.encode(secret)),
     { name: 'HMAC', hash: algSpec.hash },
     false,
     ['verify'],
   )
-  const data = enc.encode(`${headerSeg}.${payloadSeg}`)
-  const sig = base64UrlDecode(sigSeg)
+  const data = toAB(enc.encode(`${headerSeg}.${payloadSeg}`))
+  const sig = toAB(base64UrlDecode(sigSeg))
   const ok = await crypto.subtle.verify('HMAC', key, sig, data)
   if (!ok) return { valid: false, payload: null, reason: 'bad-signature' }
 
