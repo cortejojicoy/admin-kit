@@ -250,9 +250,22 @@ The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml). It's
 
 **Setup (one-time):**
 
-1. Generate an [npm automation token](https://docs.npmjs.com/creating-and-viewing-access-tokens) (granular, scope `@kukux`, publish-only).
-2. In the GitHub repo: `Settings → Secrets and variables → Actions → New repository secret` → name it `NPM_TOKEN`.
-3. `Settings → Actions → General → Workflow permissions` → enable **Read and write** (so CI can push the bump commit and tag).
+1. **npmjs.com → Trusted Publishers** (under your org `@kukux` or directly on the package settings once it exists).
+   Add a new GitHub Actions trusted publisher:
+
+   | Field | Value |
+   | --- | --- |
+   | Package | `@kukux/admin-kit` |
+   | Organization/user | (your GitHub username/org owning the repo) |
+   | Repository | `admin-kit` |
+   | Workflow filename | `ci.yml` |
+   | Environment | (leave blank) |
+
+   This replaces the long-lived `NPM_TOKEN` — the workflow gets a short-lived OIDC token at publish time. No secret in GitHub needed.
+
+2. **GitHub repo → Settings → Actions → General → Workflow permissions** → enable **Read and write** (so CI can push the bump commit and tag).
+
+That's it. No `NPM_TOKEN` secret, no 2FA bypass. The package will publish with a **verified provenance attestation** (the green "Verified" badge on the npm page), proving it was built from the exact commit shown.
 
 ### How the bump size is chosen
 
