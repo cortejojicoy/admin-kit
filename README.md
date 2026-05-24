@@ -252,10 +252,13 @@ The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml) and h
 2. In the GitHub repo: `Settings → Secrets and variables → Actions → New repository secret` → name it `NPM_TOKEN`.
 3. `Settings → Actions → General → Workflow permissions` → enable **Read and write** (so the dispatch job can push the bump commit and tag).
 
-**Cutting a release (two equivalent paths):**
+**Cutting a release (three equivalent paths):**
 
-- **Local:** `./scripts/release.sh minor` — bumps locally, pushes tag, CI publishes on the tag.
+- **Local script:** `./scripts/release.sh minor` — bumps locally, pushes tag, CI publishes on the tag.
 - **CI-only:** GitHub UI → Actions → `ci` → `Run workflow` → choose `patch`/`minor`/`major`. CI bumps, tags, pushes, publishes — your laptop never sees an npm token.
+- **Manual tag:** `git tag v0.2.0 && git push origin v0.2.0`. CI syncs `package.json` to the tag and publishes. Use this when you've already committed everything and just want to mint a version.
+
+The **git tag is the source of truth**. When CI publishes from a tag, it overwrites `package.json` version in the runner workspace to match the tag, then publishes. So `package.json` in the repo can lag behind the latest published version — that's fine; the tag is what matters.
 
 The dispatch job has a `dry_run` toggle that runs through the full lifecycle (preversion → version → postversion) without pushing tags or publishing — useful for verifying the changelog promotion before going live.
 
