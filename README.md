@@ -189,7 +189,9 @@ version automatically.
 
 ## Releasing
 
-You can bump + publish in one command. Both forms work:
+The recommended release path is GitHub Actions Trusted Publishing. Local
+commands create and push the release commit/tag; CI performs the npm publish
+without a long-lived `NPM_TOKEN` or local 2FA prompt.
 
 **Option A — guarded script (recommended):**
 
@@ -201,14 +203,14 @@ You can bump + publish in one command. Both forms work:
 
 It refuses to release from a dirty tree or a non-`main` branch, runs
 typecheck + build, bumps the version, updates the CHANGELOG, commits,
-tags, pushes, then publishes.
+tags, pushes, then the pushed tag is published by CI.
 
-**Option B — raw npm scripts:**
+**Option B — raw npm scripts + CI publish:**
 
 ```bash
-npm run release:patch && npm run publish:npm
-npm run release:minor && npm run publish:npm
-npm run release:major && npm run publish:npm
+npm run release:patch
+npm run release:minor
+npm run release:major
 ```
 
 These wire into npm's `version` lifecycle:
@@ -222,14 +224,21 @@ These wire into npm's `version` lifecycle:
 
 ## Publishing to npm
 
-`@cortejojicoy/admin-kit` is a **scoped** package, so the first publish needs `--access public`:
+`@cortejojicoy/admin-kit` is a **scoped** package, so publishes use
+`--access public`. The normal path is CI Trusted Publishing:
 
 ```bash
-# one-time
-npm login                              # browser-based login to npmjs.com
+# local release
+./scripts/release.sh patch
 
-# every release (handled by scripts/release.sh)
-npm publish --access public            # or: npm run publish:npm
+# CI then runs
+npm publish --access public --provenance
+```
+
+For a one-off local publish, npm accounts with publish 2FA need an OTP:
+
+```bash
+NPM_OTP=<current-6-digit-code> npm run publish:npm:local
 ```
 
 > "packagist" is the PHP/Composer registry — not relevant here. The JavaScript
