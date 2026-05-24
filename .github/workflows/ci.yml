@@ -114,6 +114,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Trusted Publishing needs npm >= 11.5.1. Node 20 ships with npm 10.x,
+      # so upgrade before publishing. (Trusted Publishing has no NPM_TOKEN env;
+      # the npm CLI mints a short-lived token via GitHub's OIDC provider.)
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
+
       # `npm pkg set` is a flat field edit — no lifecycle hooks fire, so the
       # postversion `git push` (which would fail in detached-HEAD tag checkout)
       # is never triggered.
@@ -131,10 +137,8 @@ jobs:
           fi
           echo "publishing v$TAG"
 
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (Trusted Publishing + provenance)
+        run: npm publish --access public --provenance
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -181,6 +185,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Trusted Publishing requires npm >= 11.5.1 (Node 20 ships with npm 10.x).
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g npm@latest
 
       - name: Configure git identity
         run: |
@@ -232,11 +240,9 @@ jobs:
           NEW="$(node -p "require('./package.json').version")"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to npm
+      - name: Publish to npm (Trusted Publishing + provenance)
         if: ${{ inputs.dry_run != true }}
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
 
       - name: Create GitHub release
         if: ${{ inputs.dry_run != true }}
