@@ -118,7 +118,11 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # `contents: write`, not read: creating the GitHub release is a write to
+      # the repository. With `read` the publish succeeds and the release step
+      # fails with "Resource not accessible by integration", which reads like a
+      # token problem and is actually this line.
+      contents: write
       id-token: write
     steps:
       # Full history and tags: `version.py notes` falls back to the commit log
@@ -210,8 +214,20 @@ jobs:
 
       # A pre-release must not become `latest`, or `npm install` hands an alpha
       # to everyone. Each stage publishes on its own channel instead.
+      # Skips a version already on the registry instead of failing, so re-running
+      # a tag whose publish succeeded but whose later steps did not can finish
+      # the job. npm refuses to republish a version, which would otherwise make
+      # the run unrepeatable.
       - name: Publish to npm (trusted publishing + provenance)
         run: |
+          name="$(node -p "require('./package.json').name")"
+          version="${{ steps.version.outputs.version }}"
+
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version is already published — skipping publish"
+            exit 0
+          fi
+
           if ! npm publish --access public --provenance --tag "${{ steps.version.outputs.dist_tag }}"; then
             cat >&2 <<'TXT'
           ::error::npm publish failed. A 404 on PUT means the registry rejected the
