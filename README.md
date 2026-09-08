@@ -446,6 +446,40 @@ deliberately **no** auto-bump-on-push job: it cannot coexist with tag-driven
 versioning, since a job that bumps `package.json` on every commit immediately
 disagrees with the tool that computes versions from tags.
 
+#### One-time registry setup
+
+Trusted publishing needs a matching record on the registry, or `npm publish`
+is refused. npm reports that refusal as `404 Not Found - PUT`, not as an auth
+error, because it will not confirm whether a package exists to someone who
+cannot write to it.
+
+On npmjs.com → the package → **Settings → Trusted Publisher**:
+
+| Field | Value |
+| --- | --- |
+| Publisher | GitHub Actions |
+| Organization or user | `cortejojicoy` |
+| Repository | `admin-kit` |
+| Workflow filename | `ci.yml` |
+| Environment name | *(blank — the workflow uses none)* |
+| Allowed actions | **tick "Allow npm publish"** |
+
+That last one matters: only `npm stage publish` is permitted by default, so
+leaving it unticked lets the connection exist and still rejects every publish.
+The fields cannot be edited afterwards — a mistake means deleting the
+connection and making a new one.
+
+Two related traps, both already handled in the workflow:
+
+- The publish job's `actions/setup-node` must **not** set `registry-url`. It
+  writes an `.npmrc` containing `_authToken=${NODE_AUTH_TOKEN}` and exports a
+  placeholder, so npm sees configured credentials, takes the classic-token
+  path, and never attempts the OIDC handshake
+  ([npm/documentation#1960](https://github.com/npm/documentation/issues/1960)).
+- npm must be >= 11.5.1 and Node >= 22.14. The job upgrades npm and asserts
+  both in a preflight step, so a future failure names its cause instead of
+  surfacing as a 404.
+
 ## License
 
 MIT

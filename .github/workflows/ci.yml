@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
   PNPM_VERSION: '10'
 
 jobs:
@@ -131,20 +131,58 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      # NOTE: deliberately no `registry-url`.
+      #
+      # `registry-url` makes setup-node write an .npmrc containing
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and export
+      # NODE_AUTH_TOKEN as a placeholder. npm then sees configured (empty)
+      # credentials, takes the classic-token path, and never attempts the OIDC
+      # handshake — so the registry treats the publish as anonymous. An
+      # unauthorised write to an *existing* package returns 404 rather than 403,
+      # which is why this failed as "404 Not Found - PUT" with no hint that auth
+      # was the problem. See npm/documentation#1960 and npm/cli#9088.
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Trusted Publishing needs npm >= 11.5.1. Node 20 ships with npm 10.x,
-      # so upgrade before publishing. (Trusted Publishing has no NPM_TOKEN env;
-      # the npm CLI mints a short-lived token via GitHub's OIDC provider.)
-      - name: Upgrade npm for Trusted Publishing
+      # Trusted publishing needs npm >= 11.5.1; the runner's bundled npm may be
+      # older. There is no NPM_TOKEN — the npm CLI mints a short-lived token
+      # from GitHub's OIDC provider, which is what `id-token: write` grants.
+      - name: Upgrade npm for trusted publishing
         run: npm install -g npm@latest
+
+      # Turn the next failure into a legible one. A misconfigured trusted
+      # publisher reports itself as a 404 from the registry, so assert the
+      # things we *can* see before getting there.
+      - name: Preflight — credentials and versions
+        run: |
+          node_version="$(node --version)"
+          npm_version="$(npm --version)"
+          echo "node $node_version / npm $npm_version"
+
+          # npm >= 11.5.1 is required for the OIDC handshake.
+          if [[ "$(printf '%s\n11.5.1\n' "$npm_version" | sort -V | head -1)" != "11.5.1" ]]; then
+            echo "::error::npm $npm_version is too old for trusted publishing (need >= 11.5.1)"
+            exit 1
+          fi
+
+          # Any configured auth token sends npm down the classic path instead of
+          # OIDC. There should be none.
+          if npm config get //registry.npmjs.org/:_authToken 2>/dev/null | grep -qv '^undefined$'; then
+            echo "::error::an npm auth token is configured; npm will skip the OIDC handshake"
+            npm config list
+            exit 1
+          fi
+
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+            echo "::error::no OIDC token endpoint — the job is missing 'id-token: write'"
+            exit 1
+          fi
+          echo "OIDC token endpoint present; no auth token configured."
 
       # The tag is the source of truth. `sync` writes it into package.json;
       # `check` then refuses to go further if the two disagree or the tag does
@@ -172,8 +210,18 @@ jobs:
 
       # A pre-release must not become `latest`, or `npm install` hands an alpha
       # to everyone. Each stage publishes on its own channel instead.
-      - name: Publish to npm (Trusted Publishing + provenance)
-        run: npm publish --access public --provenance --tag "${{ steps.version.outputs.dist_tag }}"
+      - name: Publish to npm (trusted publishing + provenance)
+        run: |
+          if ! npm publish --access public --provenance --tag "${{ steps.version.outputs.dist_tag }}"; then
+            cat >&2 <<'TXT'
+          ::error::npm publish failed. A 404 on PUT means the registry rejected the
+          credentials, not that the package is missing. With preflight green, the
+          remaining cause is the registry side: npmjs.com -> the package -> Settings
+          -> Trusted Publisher must name this exact repository and workflow file
+          (cortejojicoy/admin-kit, ci.yml, environment blank).
+          TXT
+            exit 1
+          fi
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
