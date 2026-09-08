@@ -19,8 +19,15 @@ export function serializeCookie(name: string, value: string, opts: CookieOptions
   if (opts.domain) parts.push(`Domain=${opts.domain}`)
   if (opts.secure) parts.push('Secure')
   if (opts.httpOnly) parts.push('HttpOnly')
-  parts.push(`SameSite=${opts.sameSite ?? 'Lax'}`)
+  // Canonical capitalization. The attribute is case-insensitive per RFC 6265,
+  // but the config values are lowercase and not every cookie parser in the
+  // wild is as forgiving as the spec.
+  parts.push(`SameSite=${capitalize(opts.sameSite ?? 'lax')}`)
   return parts.join('; ')
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
 export function parseCookies(header: string | null | undefined): Record<string, string> {
@@ -38,4 +45,43 @@ export function parseCookies(header: string | null | undefined): Record<string, 
 
 export function readCookieFromRequest(req: Request, name: string): string | null {
   return parseCookies(req.headers.get('cookie'))[name] ?? null
+}
+
+/**
+ * Build the session cookie your login route should set.
+ *
+ * `HttpOnly` and `Secure` by default, which is the whole point: a token the
+ * browser sends automatically but script cannot read survives an XSS that a
+ * `document.cookie`-written token does not.
+ *
+ *   // app/api/auth/login/route.ts
+ *   return new Response(JSON.stringify({ ok: true }), {
+ *     headers: { 'Set-Cookie': sessionCookie(token, { maxAge: 60 * 60 * 8 }) },
+ *   })
+ */
+export function sessionCookie(
+  token: string,
+  opts: CookieOptions & { name?: string } = {},
+): string {
+  const { name = 'admin_kit_token', ...rest } = opts
+  return serializeCookie(name, token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    ...rest,
+  })
+}
+
+/** The matching expiry cookie, for logout routes. */
+export function clearSessionCookie(opts: CookieOptions & { name?: string } = {}): string {
+  const { name = 'admin_kit_token', ...rest } = opts
+  return serializeCookie(name, '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+    ...rest,
+  })
 }

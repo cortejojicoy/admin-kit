@@ -11,3 +11,13 @@ export function useAuth(): AuthContextValue {
   }
   return ctx
 }
+
+/**
+ * Non-throwing variant, for optional chrome.
+ *
+ * A greeting or an avatar rendered outside the provider should degrade, not
+ * take the page down with it.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext)
+}

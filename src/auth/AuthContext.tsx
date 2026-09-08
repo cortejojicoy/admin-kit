@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AuthConfig } from '../config/types'
 import { createJWTProvider } from './providers/JWTProvider'
@@ -33,9 +33,10 @@ export interface AuthContextProviderProps {
 }
 
 export function AuthContextProvider({ config, children, initialSession = null }: AuthContextProviderProps) {
-  const providerRef = useRef<AuthProvider | null>(null)
-  if (providerRef.current === null) providerRef.current = resolveProvider(config)
-  const provider = providerRef.current
+  // A lazy `useState` initializer rather than a ref written during render:
+  // the provider must be created once and never re-created, and reading a ref
+  // during render is not safe under concurrent rendering.
+  const [provider] = useState<AuthProvider>(() => resolveProvider(config))
 
   const [state, setState] = useState<AuthState>(() => ({
     status: initialSession ? 'authenticated' : 'loading',
@@ -47,7 +48,7 @@ export function AuthContextProvider({ config, children, initialSession = null }:
   useEffect(() => {
     if (initialSession) return
     let cancelled = false
-    ;(async () => {
+    void (async () => {
       try {
         const session = (await provider.initialize?.()) ?? (await provider.getSession())
         if (cancelled) return
@@ -98,7 +99,9 @@ export function AuthContextProvider({ config, children, initialSession = null }:
     () =>
       provider.refresh
         ? async () => {
-            const session = await provider.refresh!()
+            const refreshFn = provider.refresh
+            if (!refreshFn) return null
+            const session = await refreshFn()
             setState({
               status: session ? 'authenticated' : 'unauthenticated',
               user: session?.user ?? null,

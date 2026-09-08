@@ -1,87 +1,165 @@
 {
   "name": "@cortejojicoy/admin-kit",
   "version": "0.1.8",
-  "description": "Next.js 16 admin panel kit — pluggable auth (JWT/OAuth/custom), customizable sidebar, modules, and components. Works with App Router and Pages Router.",
+  "description": "Next.js admin toolkit \u2014 pluggable CRUD endpoints, a three-axis access model (catalog/entitlement/permission), launcher + sidebar panels, and a markdown docs generator.",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.mjs",
-      "require": "./dist/client.js"
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "require": {
+        "types": "./dist/client.d.cts",
+        "default": "./dist/client.cjs"
+      }
+    },
+    "./data": {
+      "import": {
+        "types": "./dist/data.d.ts",
+        "default": "./dist/data.js"
+      },
+      "require": {
+        "types": "./dist/data.d.cts",
+        "default": "./dist/data.cjs"
+      }
+    },
+    "./access": {
+      "import": {
+        "types": "./dist/access.d.ts",
+        "default": "./dist/access.js"
+      },
+      "require": {
+        "types": "./dist/access.d.cts",
+        "default": "./dist/access.cjs"
+      }
+    },
+    "./ui": {
+      "import": {
+        "types": "./dist/ui.d.ts",
+        "default": "./dist/ui.js"
+      },
+      "require": {
+        "types": "./dist/ui.d.cts",
+        "default": "./dist/ui.cjs"
+      }
     },
     "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.mjs",
-      "require": "./dist/server.js"
+      "import": {
+        "types": "./dist/server.d.ts",
+        "default": "./dist/server.js"
+      },
+      "require": {
+        "types": "./dist/server.d.cts",
+        "default": "./dist/server.cjs"
+      }
     },
     "./middleware": {
-      "types": "./dist/middleware.d.ts",
-      "import": "./dist/middleware.mjs",
-      "require": "./dist/middleware.js"
+      "import": {
+        "types": "./dist/middleware.d.ts",
+        "default": "./dist/middleware.js"
+      },
+      "require": {
+        "types": "./dist/middleware.d.cts",
+        "default": "./dist/middleware.cjs"
+      }
     },
+    "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-styles.mjs",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint src tests scripts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:tool": "python3 -m unittest discover -s tool -p 'test_*.py'",
+    "smoke": "node scripts/smoke.mjs",
+    "check:package": "publint --strict && attw --pack . --profile node16 --exclude-entrypoints styles.css",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run test:tool && npm run build && npm run smoke && npm run check:package",
     "clean": "rm -rf dist",
-    "preversion": "npm run typecheck && npm run build",
-    "version": "node scripts/update-changelog.mjs && git add CHANGELOG.md",
-    "postversion": "git push --follow-tags",
-    "release:patch": "npm version patch -m \"chore(release): v%s\"",
-    "release:minor": "npm version minor -m \"chore(release): v%s\"",
-    "release:major": "npm version major -m \"chore(release): v%s\"",
+    "release": "./tool/release.sh",
+    "version:current": "./tool/version.py current",
+    "version:next": "./tool/version.py next",
     "prepublishOnly": "npm run clean && npm run build",
-    "publish:npm": "npm publish --access public --provenance",
-    "publish:npm:local": "node scripts/publish-local.mjs"
+    "publish:npm": "npm publish --access public --provenance"
   },
   "peerDependencies": {
-    "next": ">=16.0.0",
+    "next": ">=15.0.0",
     "react": ">=19.0.0",
-    "react-dom": ">=19.0.0"
+    "react-dom": ">=19.0.0",
+    "jiti": ">=2.0.0"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": false },
-    "react": { "optional": false },
-    "react-dom": { "optional": false }
+    "next": {
+      "optional": false
+    },
+    "react": {
+      "optional": false
+    },
+    "react-dom": {
+      "optional": false
+    },
+    "jiti": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^30.0.1",
     "next": "^16.0.0",
+    "publint": "^0.3.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.3.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^5.0.0"
   },
   "keywords": [
     "nextjs",
-    "next16",
     "admin",
     "admin-panel",
     "dashboard",
-    "jwt",
-    "oauth",
+    "crud",
+    "rbac",
+    "permissions",
+    "launcher",
     "sidebar",
-    "pluggable",
     "app-router",
-    "pages-router"
+    "pages-router",
+    "pluggable",
+    "jwt",
+    "oauth"
   ],
   "sideEffects": [
     "**/*.css"
@@ -102,5 +180,8 @@
   "bugs": {
     "url": "https://github.com/cortejojicoy/admin-kit/issues"
   },
-  "homepage": "https://github.com/cortejojicoy/admin-kit#readme"
+  "homepage": "https://github.com/cortejojicoy/admin-kit#readme",
+  "bin": {
+    "admin-kit": "./dist/cli.js"
+  }
 }

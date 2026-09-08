@@ -7,19 +7,8 @@
 
 const enc = new TextEncoder()
 
-/**
- * Web Crypto's `BufferSource` requires `Uint8Array<ArrayBuffer>`. Newer TS
- * lib types widen `TextEncoder.encode()` / typed arrays to `ArrayBufferLike`,
- * which leaks `SharedArrayBuffer` into the type. Copy into a fresh ArrayBuffer
- * so the call sites typecheck cleanly without `as` casts.
- */
-function toAB(view: Uint8Array): ArrayBuffer {
-  const buf = new ArrayBuffer(view.byteLength)
-  new Uint8Array(buf).set(view)
-  return buf
-}
-
 function base64UrlDecode(input: string): Uint8Array<ArrayBuffer> {
+  if (!/^[A-Za-z0-9_-]*$/.test(input)) throw new Error('not base64url')
   const pad = input.length % 4 === 0 ? '' : '='.repeat(4 - (input.length % 4))
   const b64 = (input + pad).replace(/-/g, '+').replace(/_/g, '/')
   const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary')
@@ -54,7 +43,28 @@ export interface VerifyResult {
   reason?: string
 }
 
-export async function verifyJWT(token: string, secret: string): Promise<VerifyResult> {
+export interface VerifyOptions {
+  /**
+   * Algorithms the caller is willing to accept. Default `['HS256']`.
+   *
+   * The `alg` header is attacker-controlled, so an allowlist chosen by the
+   * *verifier* is what closes algorithm confusion. Without it, "look the header
+   * up in a table of algorithms we support" quietly accepts any of them — fine
+   * today because the table is HMAC-only, and a vulnerability the moment
+   * someone adds RS256 to it.
+   */
+  algorithms?: string[]
+  /** Seconds of leeway on `exp`/`nbf`, for clock skew. Default 0. */
+  clockTolerance?: number
+}
+
+export async function verifyJWT(
+  token: string,
+  secret: string,
+  options: VerifyOptions = {},
+): Promise<VerifyResult> {
+  const allowed = options.algorithms ?? ['HS256']
+  const tolerance = options.clockTolerance ?? 0
   const parts = token.split('.')
   if (parts.length !== 3) return { valid: false, payload: null, reason: 'malformed' }
   const [headerSeg, payloadSeg, sigSeg] = parts
@@ -64,18 +74,33 @@ export async function verifyJWT(token: string, secret: string): Promise<VerifyRe
   } catch {
     return { valid: false, payload: null, reason: 'bad-header' }
   }
-  const algSpec = header.alg ? ALGS[header.alg] : undefined
+  if (!header.alg || !allowed.includes(header.alg)) {
+    return { valid: false, payload: null, reason: `alg-not-allowed:${header.alg ?? 'none'}` }
+  }
+  const algSpec = ALGS[header.alg]
   if (!algSpec) return { valid: false, payload: null, reason: `unsupported-alg:${header.alg}` }
 
+  // Typed arrays, not `ArrayBuffer`.
+  //
+  // An earlier version copied into a fresh `ArrayBuffer` to satisfy the lib
+  // types. That works in Node and *fails in Next's edge runtime*, which checks
+  // the argument against its own realm's `ArrayBuffer` and rejects a buffer
+  // constructed outside it: "2nd argument is not instance of ArrayBuffer,
+  // Buffer, TypedArray, or DataView". A `Uint8Array` is accepted in both.
   const key = await crypto.subtle.importKey(
     'raw',
-    toAB(enc.encode(secret)),
+    enc.encode(secret),
     { name: 'HMAC', hash: algSpec.hash },
     false,
     ['verify'],
   )
-  const data = toAB(enc.encode(`${headerSeg}.${payloadSeg}`))
-  const sig = toAB(base64UrlDecode(sigSeg))
+  const data = enc.encode(`${headerSeg}.${payloadSeg}`)
+  let sig: Uint8Array<ArrayBuffer>
+  try {
+    sig = base64UrlDecode(sigSeg)
+  } catch {
+    return { valid: false, payload: null, reason: 'malformed-signature' }
+  }
   const ok = await crypto.subtle.verify('HMAC', key, sig, data)
   if (!ok) return { valid: false, payload: null, reason: 'bad-signature' }
 
@@ -87,8 +112,12 @@ export async function verifyJWT(token: string, secret: string): Promise<VerifyRe
   }
 
   const now = Math.floor(Date.now() / 1000)
-  if (payload.exp != null && now >= payload.exp) return { valid: false, payload, reason: 'expired' }
-  if (payload.nbf != null && now < payload.nbf) return { valid: false, payload, reason: 'not-yet-valid' }
+  if (payload.exp != null && now - tolerance >= payload.exp) {
+    return { valid: false, payload, reason: 'expired' }
+  }
+  if (payload.nbf != null && now + tolerance < payload.nbf) {
+    return { valid: false, payload, reason: 'not-yet-valid' }
+  }
 
   return { valid: true, payload }
 }

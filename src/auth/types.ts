@@ -61,12 +61,30 @@ export interface JWTEndpoints {
   refresh?: string
 }
 
+/**
+ * Where the session token lives.
+ *
+ *   `server-cookie` (default) — the login route sets an `HttpOnly; Secure`
+ *       cookie and the client never touches the token. The only option that is
+ *       not readable by injected script, which is why it is the default.
+ *   `js-cookie` — the client writes `document.cookie`. Readable by any XSS on
+ *       the origin. Opt in only when the token must be read from JS.
+ *   `localStorage` — same exposure as `js-cookie`, and invisible to middleware
+ *       and to server components, so route protection must be client-side.
+ *   `memory` — lost on reload; useful for embedded or test usage.
+ */
+export type TokenStorage = 'server-cookie' | 'js-cookie' | 'localStorage' | 'memory'
+
 export interface JWTAuthConfig {
   endpoints: JWTEndpoints
-  /** Where the token is stored on the client. Default: 'cookie'. */
-  tokenStorage?: 'cookie' | 'localStorage' | 'memory'
+  /** Default: `'server-cookie'`. See {@link TokenStorage}. */
+  tokenStorage?: TokenStorage
   cookieName?: string
-  /** Used by middleware/server helpers to verify tokens. NEVER ship to the client. */
+  /**
+   * @deprecated Moved to `AdminServerConfig.jwt.secret` in 0.2.0 so it cannot
+   * be reached from the module graph a client component imports. Still read as
+   * a fallback, and stripped by `serializeConfig()`.
+   */
   secret?: string
   /** Header to send on authenticated requests. Default: 'Authorization' with 'Bearer '. */
   header?: { name: string; prefix?: string }

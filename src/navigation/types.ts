@@ -1,24 +1,42 @@
-import type { ReactNode } from 'react'
-import type { AuthUser } from '../auth/types'
+import type { AccessLevel } from '../access/levels'
 
+/**
+ * Navigation descriptors are **plain data**, deliberately.
+ *
+ * v0.1.x typed `icon` as a `ReactNode` and `visible` as a predicate, which made
+ * a config carrying either one impossible to pass from a server component into
+ * a client one — functions and JSX are not serializable. That blocked the whole
+ * pattern this kit is built around: resolve navigation on the server, where the
+ * user's permissions already are, and hand the finished tree to a client shell.
+ *
+ * So icons are **string keys** resolved to components by the renderer (see
+ * `IconRegistry`), and visibility is declarative (`roles`, `permissions`,
+ * `accessCodes`, `requiredLevel`) and evaluated by the access engine. Anything
+ * genuinely dynamic belongs in a component, not in config.
+ */
 export interface NavItem {
+  /** Stable id. Used to merge module-contributed items into config sections. */
   id?: string
   label: string
   href?: string
-  icon?: ReactNode
-  badge?: ReactNode | string | number
+  /** Key into the icon registry, e.g. `'users'`. Not a component. */
+  iconKey?: string
+  /** Short badge text. A number or string, so it stays serializable. */
+  badge?: string | number
   external?: boolean
-  /** Hide this item from rendering. Useful for feature flags. */
+  /** Hard hide, for feature flags. */
   hidden?: boolean
-  /** Restrict to users with any of these roles. */
+  /** Visible to users holding any of these roles. */
   roles?: string[]
-  /** Restrict to users with any of these permissions. */
+  /** Visible to users holding any of these permission codes. */
   permissions?: string[]
-  /** Programmatic visibility check; runs after role/permission filters. */
-  visible?: (user: AuthUser | null) => boolean
+  /** Alternative codes that also grant this item (merged submodules). */
+  accessCodes?: string[]
+  /** Minimum level required over `permissions`/`accessCodes`. Default `view`. */
+  requiredLevel?: AccessLevel
   /** Nested items render as a collapsible group. */
   children?: NavItem[]
-  /** Optional sort weight; lower comes first. Default 0. */
+  /** Sort weight, ascending. Default 0. */
   order?: number
 }
 
@@ -28,6 +46,7 @@ export interface NavSection {
   items: NavItem[]
   roles?: string[]
   permissions?: string[]
-  visible?: (user: AuthUser | null) => boolean
+  accessCodes?: string[]
+  requiredLevel?: AccessLevel
   order?: number
 }

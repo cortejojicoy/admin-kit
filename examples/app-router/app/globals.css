@@ -1,0 +1,6 @@
+/* The kit styles itself; this is only the page reset around it. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
