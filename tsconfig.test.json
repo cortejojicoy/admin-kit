@@ -1,0 +1,14 @@
+{
+  // Covers the files the package config deliberately excludes: tests and build
+  // scripts. The package tsconfig keeps `rootDir: src` because it governs
+  // declaration emit, which is why this cannot simply widen `include` there.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*", "tests/**/*", "*.ts", "*.mts"]
+}

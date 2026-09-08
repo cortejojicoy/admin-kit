@@ -1,0 +1,10 @@
+# The examples are workspace packages so they consume the kit exactly as a
+# consumer does — through its `exports` map, from `dist`. Building them in CI is
+# what catches the class of bug that typechecks cleanly and ships broken.
+packages:
+  - '.'
+  - 'examples/*'
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

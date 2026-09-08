@@ -1,346 +1,450 @@
 # @cortejojicoy/admin-kit
 
-A pluggable Next.js 16 admin panel kit. Drop in a config, get an authenticated dashboard with a customizable sidebar, JWT/OAuth/custom auth, and modules.
-
-- **Next.js 16 / React 19** — Works with both App Router and Pages Router.
-- **Pluggable auth** — JWT by default; switch to OAuth or supply a custom provider.
-- **Config-driven sidebar** — Sections, items, badges, roles, and per-user filtering.
-- **Modules** — Self-contained feature packs that contribute nav, providers, and dashboard widgets.
-- **Edge-safe middleware** — Token verification at the edge via Web Crypto.
-- **Theme tokens** — Override colors and radii via CSS variables.
-
-## Install
+A Next.js admin toolkit you configure rather than fork. Declare your endpoints,
+your permissions and your modules once; get a launcher panel, a sidebar panel,
+generated CRUD screens, and documentation of your own installation.
 
 ```bash
 pnpm add @cortejojicoy/admin-kit
-# or
-npm install @cortejojicoy/admin-kit
+npx admin-kit init        # scaffold config, middleware, panels and routes
+npx admin-kit docs        # generate docs for *your* config
 ```
 
-Peer deps (must be installed in the consumer): `next@>=16`, `react@>=19`, `react-dom@>=19`.
+- **Every endpoint is yours.** Login was pluggable in 0.1.x; now list, read,
+  create, update, delete and any named action are too — declared per resource,
+  with the wire format mapped in both directions.
+- **Three-axis access control.** Catalog (does the module exist?), entitlement
+  (may this tenant run it?), permission (may this user open it?) — separately
+  configured, with `none` / `view` / `full` levels rather than a boolean.
+- **Two panels.** A launcher for daily work that *everyone* lands on, and a
+  sidebar panel for administration. Split by kind of work, not kind of account.
+- **Serializable config.** Plain data, so it can be resolved on the server with
+  the user's permissions in hand and read by a CLI in plain Node.
+- **Styled on install.** One stylesheet driven by CSS custom properties. No
+  Tailwind, no preset, no content globs.
+- App Router and Pages Router; React 19; Next 15 and 16.
 
-## 1. Define your config
+## Quick start
+
+### 1. Configure
 
 ```ts
-// admin.config.ts
+// admin.config.ts — plain data, imported by both server and client
 import { defineAdminConfig } from '@cortejojicoy/admin-kit'
 
 export const adminConfig = defineAdminConfig({
-  app: { name: 'Acme Admin' },
+  app: { name: 'Northwind', logoIconKey: 'grid' },
+
   auth: {
     provider: 'jwt',
     jwt: {
-      endpoints: {
-        login: '/api/auth/login',
-        me: '/api/auth/me',
-        logout: '/api/auth/logout',
-      },
-      secret: process.env.JWT_SECRET, // only read on the server / in middleware
-      cookieName: 'acme_token',
+      endpoints: { login: '/api/auth/login', me: '/api/auth/me', logout: '/api/auth/logout' },
+      tokenStorage: 'server-cookie',   // HttpOnly; the browser never holds the token
+      cookieName: 'northwind_session',
     },
-    loginPage: { path: '/login', title: 'Sign in to Acme' },
-    publicRoutes: ['/login', '/api/auth'],
+    loginPage: { path: '/login' },
   },
-  navigation: {
-    sections: [
-      {
-        label: 'Workspace',
-        items: [
-          { label: 'Dashboard', href: '/' },
-          { label: 'Users', href: '/users', roles: ['admin'] },
-        ],
+
+  access: {
+    roles: { admin: ['*'], manager: ['users:*'], staff: ['users:list'] },
+    hierarchy: { admin: ['manager'] },
+    deny: { manager: ['users:delete'] },
+  },
+
+  modules: [
+    { code: 'USERS', title: 'People', href: '/admin/users', iconKey: 'users',
+      placement: 'tile', emphasis: 'primary' },
+    { code: 'INBOX', title: 'Inbox', href: '/inbox', iconKey: 'bell',
+      placement: 'dock' },
+  ],
+
+  resources: [
+    {
+      name: 'users',
+      endpoints: {
+        list:   '/api/users',
+        one:    '/api/users/:id',
+        create: { method: 'POST',   path: '/api/users' },
+        update: { method: 'PATCH',  path: '/api/users/:id' },
+        remove: { method: 'DELETE', path: '/api/users/:id' },
       },
-    ],
-  },
+      query: { page: 'page', perPage: 'per_page', search: 'q' },
+      fields: [
+        { name: 'name', required: true, sortable: true },
+        { name: 'email', type: 'email', required: true },
+        { name: 'active', type: 'boolean' },
+      ],
+      permissions: { list: 'users:list', create: 'users:create', remove: 'users:delete' },
+    },
+  ],
 })
 ```
 
-## 2. App Router
+```ts
+// admin.server.ts — never imported from a client component
+import { defineAdminServerConfig } from '@cortejojicoy/admin-kit'
+
+export const serverConfig = defineAdminServerConfig({
+  jwt: { secret: process.env.JWT_SECRET, algorithms: ['HS256'] },
+})
+```
+
+The split is the point: the secret is not reachable from the module graph the
+browser bundle imports.
+
+### 2. Mount the provider
+
+Resolve the session and access on the server, then hand them down as data.
+Components — icons, plugins, overrides — cannot cross that boundary, so they are
+registered in a small client file.
+
+```tsx
+// app/providers.tsx
+'use client'
+import { AdminProvider } from '@cortejojicoy/admin-kit/client'
+import { adminConfig } from '@/admin.config'
+import { icons } from '@/lib/icons'
+
+export function Providers({ session, snapshot, children }) {
+  return (
+    <AdminProvider config={adminConfig} initialSession={session} snapshot={snapshot} icons={icons}>
+      {children}
+    </AdminProvider>
+  )
+}
+```
 
 ```tsx
 // app/layout.tsx
-import { AdminProvider, AdminLayout, AppLink, useAppPathname } from '@cortejojicoy/admin-kit/client'
+import { headers } from 'next/headers'
+import { getServerSession, resolveAccess, rolesFromSession } from '@cortejojicoy/admin-kit/server'
 import { adminConfig } from '@/admin.config'
-import { resolveConfig } from '@cortejojicoy/admin-kit'
+import { serverConfig } from '@/admin.server'
+import { Providers } from './providers'
+import '@cortejojicoy/admin-kit/styles.css'
 
-const resolved = resolveConfig(adminConfig)
+export default async function RootLayout({ children }) {
+  const session = await getServerSession(adminConfig, { headers: await headers() }, { serverConfig })
+  const roles = rolesFromSession(adminConfig, session)
+  const snapshot = await resolveAccess(adminConfig, { roles })
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html>
+    <html lang="en">
       <body>
-        <AdminProvider config={adminConfig}>
-          <Shell>{children}</Shell>
-        </AdminProvider>
+        <Providers session={session} snapshot={snapshot}>{children}</Providers>
       </body>
     </html>
   )
 }
-
-function Shell({ children }: { children: React.ReactNode }) {
-  const pathname = useAppPathname()
-  return (
-    <AdminLayout config={resolved} Link={AppLink} currentPath={pathname}>
-      {children}
-    </AdminLayout>
-  )
-}
 ```
 
-## 3. Pages Router
+Because the snapshot is resolved server-side, the first paint already shows the
+right navigation for the right user — no client fetch, no flash of items they
+cannot see.
+
+### 3. The panels
 
 ```tsx
-// pages/_app.tsx
-import { AdminProvider } from '@cortejojicoy/admin-kit/client'
-import { adminConfig } from '@/admin.config'
+// app/dashboard/page.tsx — the launcher, where everyone lands
+import { AppShell, AppLauncher } from '@cortejojicoy/admin-kit/ui'
 
-export default function App({ Component, pageProps }) {
-  return (
-    <AdminProvider config={adminConfig}>
-      <Component {...pageProps} />
-    </AdminProvider>
-  )
+export default function Page() {
+  return <AppShell><AppLauncher /></AppShell>
 }
-
-// pages/dashboard.tsx
-import { withAdminLayout } from '@cortejojicoy/admin-kit/client'
-import { resolveConfig } from '@cortejojicoy/admin-kit'
-import { adminConfig } from '@/admin.config'
-
-function DashboardPage() { return <div>Hello</div> }
-export default withAdminLayout(DashboardPage, { config: resolveConfig(adminConfig), title: 'Dashboard' })
 ```
 
-## 4. Edge middleware
+```tsx
+// app/admin/layout.tsx — the sidebar panel, gated once for everything beneath it
+import { AdminShell } from '@cortejojicoy/admin-kit/ui'
+import { AccessDeniedError, getServerSession, requireAdmin, rolesFromSession } from '@cortejojicoy/admin-kit/server'
+
+export default async function AdminLayout({ children }) {
+  const session = await getServerSession(adminConfig, { headers: await headers() }, { serverConfig })
+  if (!session) redirect('/login')
+  try {
+    await requireAdmin(adminConfig, { roles: rolesFromSession(adminConfig, session) })
+  } catch (error) {
+    if (error instanceof AccessDeniedError) redirect(error.redirectTo ?? '/dashboard')
+    throw error
+  }
+  return <AdminShell>{children}</AdminShell>
+}
+```
+
+### 4. A CRUD screen
+
+```tsx
+import { PageHeader, ResourceTable } from '@cortejojicoy/admin-kit/ui'
+
+export default function UsersPage() {
+  return (
+    <>
+      <PageHeader title="People" />
+      <ResourceTable resource="users" hrefFor="/admin/users/:id" />
+    </>
+  )
+}
+```
+
+Columns, endpoint, page size, sorting, search, pagination and the delete button's
+permission all come from the resource definition. `<ResourceForm>` and
+`<ResourceShow>` work the same way. When the generated screens stop fitting, drop
+to the hooks (`useList`, `useOne`, `useCreate`, `useUpdate`, `useDelete`,
+`useAction`) and keep everything else.
+
+### 5. Protect the routes
 
 ```ts
-// middleware.ts (consumer root)
+// middleware.ts
 import { createAdminMiddleware } from '@cortejojicoy/admin-kit/middleware'
 import { adminConfig } from './admin.config'
 
-export default createAdminMiddleware(adminConfig)
-export const config = { matcher: ['/((?!_next|api/auth|favicon).*)'] }
+export default createAdminMiddleware(adminConfig, { secret: process.env.JWT_SECRET })
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth).*)'] }
 ```
 
-## 5. Server-side session
+## Authorization: what actually gates what
+
+Three layers, and only one of them is a gate:
+
+| Layer | Job | Not its job |
+| --- | --- | --- |
+| `createAdminMiddleware` | Redirect a signed-out browser to the login page | Authorization. Next middleware has been bypassable (CVE-2025-29927), and a token can be revoked after it was signed |
+| `<Can>`, `<RequirePermission>` | Hide controls the user cannot use | Authorization. A hidden button is still a reachable endpoint |
+| `requireModule`, `requireAdmin`, `assertPermission` | **Refuse the request** | — |
 
 ```ts
-// app/api/me/route.ts
-import { getServerSession } from '@cortejojicoy/admin-kit/server'
-import { adminConfig } from '@/admin.config'
+// app/api/users/route.ts
+import { assertPermission, AccessDeniedError } from '@cortejojicoy/admin-kit/server'
 
-export async function GET(req: Request) {
-  const session = await getServerSession(adminConfig, req)
-  return Response.json({ user: session?.user ?? null })
+export async function POST(request: Request) {
+  const { session, roles } = await currentSession()
+  if (!session) return Response.json({ message: 'Not signed in' }, { status: 401 })
+  try {
+    await assertPermission(adminConfig, 'users:create', { roles })
+  } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return Response.json({ message: error.message }, { status: 403 })
+    }
+    throw error
+  }
+  // …
 }
 ```
+
+## The three access axes
+
+```ts
+access: {
+  catalog:      { endpoint: '/api/modules', fallback: STATIC_MODULES },
+  entitlements: { endpoint: '/api/me/tenant', field: 'modules', onUnavailable: 'allow' },
+  permissions:  { endpoint: '/api/me/permissions', onUnavailable: 'allow' },
+  roles:     { admin: ['*'], editor: ['posts:*'] },
+  hierarchy: { admin: ['editor'] },
+  deny:      { editor: ['users:delete'] },
+}
+```
+
+| Axis | Question | If the source cannot be read |
+| --- | --- | --- |
+| Catalog | Does the module exist and is it active? | Fall back to the declared modules, so navigation never blanks |
+| Entitlement | May this tenant run it? | Fail **open** by default |
+| Permission | May this user open it? | Fail **open** by default |
+
+Failing open is deliberate: a control-plane read that failed must not lock a
+paying customer out of software they have paid for. Set `onUnavailable: 'deny'`
+per axis where absence genuinely means no. Anything guarding administration
+itself (`requireAdmin`) fails closed regardless.
+
+Levels are ordered `none` < `view` < `full`, so read-only access is expressible.
+Permission patterns support wildcards (`users:*`, `*:list`, `*`); `deny` beats
+every grant; role hierarchy accumulates grants but **not** restrictions — a
+denial on `manager` does not bind an `admin` who merely inherits it.
+
+## Serializable configuration
+
+`AdminConfig` is plain data on purpose. Icons are string keys resolved through a
+registry, visibility is declarative (`roles`, `permissions`, `accessCodes`,
+`requiredLevel`), and functions live only in `resources[].map`, `auth.custom` and
+plugins — the three places `serializeConfig()` strips at the boundary.
+
+That constraint is what makes the rest work: navigation can be resolved on the
+server, and `admin-kit docs` can read your config in plain Node.
+
+```ts
+import { serializeConfig, findUnserializable } from '@cortejojicoy/admin-kit'
+
+serializeConfig(adminConfig)      // safe to pass into a client component
+findUnserializable(adminConfig)   // paths to anything that would break — for a test
+```
+
+## Documentation generator
+
+```bash
+admin-kit docs                 # write docs/admin/**.md from your config
+admin-kit docs --check         # CI: fail if they are out of date
+admin-kit docs --out … --format md|mdx --config …
+```
+
+| File | Content |
+| --- | --- |
+| `getting-started.md` | Copy-paste snippets using your paths, your names |
+| `auth.md` | Your endpoint table, session storage and its exposure, env vars |
+| `access.md` | The three gates as configured, plus a role → permission matrix |
+| `navigation.md` | Tiles, dock and sidebar, annotated with what each requires |
+| `resources.md` | Per resource: endpoints, verbs, permissions, fields, snippets |
+| `configuration.md` | Every value set and every default inherited, secrets redacted |
+
+Generated from your config, not from a template — so it describes your
+installation, and `--check` in CI stops it from drifting. See
+[`examples/app-router/docs`](examples/app-router/docs) for real output.
+
+## Theming
+
+One stylesheet, driven entirely by custom properties:
+
+```ts
+theme: {
+  mode: 'system',
+  primaryColor: '#1f6feb',
+  tokens: { '--ak-radius': '0.75rem', '--ak-sidebar-width': '18rem' },
+}
+```
+
+Every component takes `className`, so a design system can restyle rather than
+reimplement. Skip the stylesheet import entirely if you would rather style it
+yourself.
 
 ## Sub-path exports
 
-| Sub-path                          | Purpose                                                |
-| --------------------------------- | ------------------------------------------------------ |
-| `@cortejojicoy/admin-kit`                | Config helpers + types (safe everywhere)              |
-| `@cortejojicoy/admin-kit/client`         | React components & hooks (client components)          |
-| `@cortejojicoy/admin-kit/server`         | `getServerSession`, `verifyJWT`, cookie helpers       |
-| `@cortejojicoy/admin-kit/middleware`     | `createAdminMiddleware` (edge-safe)                   |
+| Sub-path | Contents | Environment |
+| --- | --- | --- |
+| `@cortejojicoy/admin-kit` | Config helpers, types, pure logic | Anywhere, including plain Node |
+| `…/client` | `AdminProvider`, contexts, hooks | Client |
+| `…/data` | CRUD hooks, data provider, resource types | Client |
+| `…/access` | Engine, `<Can>`, guards | Client |
+| `…/ui` | Panels, primitives, generated screens | Client |
+| `…/server` | Session, access gates, cookies | Server |
+| `…/middleware` | `createAdminMiddleware` | Edge |
+| `…/styles.css` | The stylesheet | — |
 
-## Modules
+## Example
 
-```ts
-import type { AdminModule } from '@cortejojicoy/admin-kit'
-
-export const billingModule: AdminModule = {
-  id: 'billing',
-  navSections: [{
-    label: 'Billing',
-    items: [{ label: 'Invoices', href: '/billing/invoices' }],
-  }],
-  enabled: ({ user }) => user?.roles?.includes('admin') ?? false,
-}
-
-// then add to config.modules
-```
-
-## Versioning
-
-We follow [Semantic Versioning](https://semver.org/) — the `MAJOR.MINOR.PATCH` triplet:
-
-```
- 1.4.2
- │ │ └── PATCH — bug fix, no API change          (consumers auto-update safely)
- │ └──── MINOR — new feature, backwards compat   (consumers auto-update safely)
- └────── MAJOR — breaking change                 (consumers must opt in)
-```
-
-What counts as which:
-
-| Change                                                  | Bump    |
-| ------------------------------------------------------- | ------- |
-| Fix a sidebar render bug, JWT cookie parsing fix        | PATCH   |
-| Add a new optional prop, add a new module slot          | MINOR   |
-| Add a new sub-path export (no behavior change)          | MINOR   |
-| Rename a public prop, remove an export, drop Next 16    | MAJOR   |
-| Change the shape of `AdminConfig.auth`                  | MAJOR   |
-| Change a default that consumers depended on             | MAJOR   |
-
-Document every change in `CHANGELOG.md` under `## [Unreleased]` before
-cutting a release — the release script promotes that section to the new
-version automatically.
-
-## Releasing
-
-The recommended release path is GitHub Actions Trusted Publishing. Local
-commands create and push the release commit/tag; CI performs the npm publish
-without a long-lived `NPM_TOKEN` or local 2FA prompt.
-
-**Option A — guarded script (recommended):**
+[`examples/app-router`](examples/app-router) is a complete installation: HttpOnly
+cookie auth, three roles with inheritance and a deny rule, both panels, a
+generated CRUD screen, and route handlers that actually refuse unauthorized
+requests. It is built in CI, which is what catches the class of bug that
+typechecks cleanly and ships broken.
 
 ```bash
-./scripts/release.sh patch   # 0.1.0 -> 0.1.1
-./scripts/release.sh minor   # 0.1.0 -> 0.2.0
-./scripts/release.sh major   # 0.1.0 -> 1.0.0
+pnpm install
+pnpm --filter @examples/app-router dev
+# sign in with any seeded email and the password "demo"
 ```
 
-It refuses to release from a dirty tree or a non-`main` branch, runs
-typecheck + build, bumps the version, updates the CHANGELOG, commits,
-tags, pushes, then the pushed tag is published by CI.
-
-**Option B — raw npm scripts + CI publish:**
+## Development
 
 ```bash
-npm run release:patch
-npm run release:minor
-npm run release:major
+pnpm verify      # typecheck + lint + test + build + smoke + publint + attw
+pnpm test        # vitest
+pnpm build       # tsup + stylesheet copy
 ```
 
-These wire into npm's `version` lifecycle:
+`pnpm verify` is the publish gate. It loads every entry point in both module
+systems, asserts the `"use client"` directives land where they belong, tests the
+release tooling, and runs `publint` and `are-the-types-wrong` against the packed
+tarball. `tool/release.sh` runs it before it will tag anything.
 
-| Hook            | What runs                                        |
-| --------------- | ------------------------------------------------ |
-| `preversion`    | typecheck + build                                |
-| `version`       | promote `[Unreleased]` → new version in CHANGELOG |
-| `postversion`   | `git push --follow-tags`                         |
-| `prepublishOnly` | clean + build before `npm publish`              |
+## Versioning and releases
 
-## Publishing to npm
+Git tags are the source of truth. `package.json`'s `version` is a derived
+artifact, written from the tag at release time — so a published version always
+has a tag pointing at the exact commit it was built from.
 
-`@cortejojicoy/admin-kit` is a **scoped** package, so publishes use
-`--access public`. The normal path is CI Trusted Publishing:
+`tool/version.py` owns the scheme (adapted from the same tool in
+`trackbnb-flutter`):
+
+```
+vMAJOR.MINOR.PATCH[-stage.N]        alpha | beta | rc | lts
+```
+
+### Cutting a release
+
+From a clean `main`:
 
 ```bash
-# local release
-./scripts/release.sh patch
-
-# CI then runs
-npm publish --access public --provenance
+./tool/release.sh minor              # 0.1.8 → v0.2.0
+./tool/release.sh beta               # open a public-testing cycle
+./tool/release.sh promote            # turn the current pre-release stable
+./tool/release.sh patch --dry-run    # show everything, change nothing
 ```
 
-For a one-off local publish, npm accounts with publish 2FA need an OTP:
+It refuses to run from a dirty tree, a branch other than `main`, or a `main`
+behind origin. Then it runs `pnpm verify`, promotes the CHANGELOG's
+`## [Unreleased]` section, writes the version into `package.json`, commits, tags
+that commit, and pushes. CI publishes from the tag.
+
+### The stage progression
+
+| Tag | Meaning | Next step |
+| --- | --- | --- |
+| `v0.1.0` | seed | `patch` |
+| `v0.1.1` | bug fix in development | `patch` |
+| `v0.1.2-alpha.1` | enter internal testing | `alpha` |
+| `v0.1.2-alpha.2` | another internal build | `alpha` |
+| `v0.1.2` | stable at alpha, released | `promote` |
+| `v0.1.3` | minor bug fix | `patch` |
+| `v0.2.0-beta.1` | enter public testing | `beta` |
+| `v0.2.1` | stable at beta | `promote` |
+| `v0.3.0-rc.1` | final validation | `rc` |
+| `v0.3.1` | final release | `promote` |
+| `v1.0.0-lts.1` | production candidate | `lts` |
+| `v1.0.0` | official release | `promote` |
+
+Ordering is semver — a pre-release sorts before its bare version — with one
+deliberate exception: stages rank `alpha < beta < rc < lts`, where strict semver
+would compare the identifiers lexically and put `lts` before `rc`.
+
+### npm channels
+
+A pre-release publishes under its own dist-tag, so `npm install` keeps serving
+the stable release and opting in is explicit:
 
 ```bash
-NPM_OTP=<current-6-digit-code> npm run publish:npm:local
+npm install @cortejojicoy/admin-kit         # latest stable
+npm install @cortejojicoy/admin-kit@beta    # current beta
 ```
 
-> "packagist" is the PHP/Composer registry — not relevant here. The JavaScript
-> ecosystem publishes to **npm** (https://www.npmjs.com). The same tarball
-> can also be mirrored to GitHub Packages by changing `publishConfig.registry`.
+### Inspecting
 
-### CI/CD (GitHub Actions)
-
-The workflow lives at [.github/workflows/ci.yml](.github/workflows/ci.yml). It's **push-driven**: every commit to `main` auto-publishes a new version.
-
-| Trigger                                          | What happens                                                |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| `push` to `main` (normal commit)                 | `verify` + `release-on-push` → bump + tag + publish to npm  |
-| `push` to `main` (release commit, has `[skip ci]`) | nothing — loop guard                                      |
-| `pull_request` to `main`                         | `verify` only — never publishes                             |
-| `push` of a `v*.*.*` tag                         | `verify` + `publish-on-tag` → publish that tag's version    |
-| `workflow_dispatch` (manual)                     | `verify` + `release-on-push` with chosen bump               |
-
-**Setup (one-time):**
-
-1. **npmjs.com → Trusted Publishers** (under your org `@cortejojicoy` or directly on the package settings once it exists).
-   Add a new GitHub Actions trusted publisher:
-
-   | Field | Value |
-   | --- | --- |
-   | Package | `@cortejojicoy/admin-kit` |
-   | Organization/user | (your GitHub username/org owning the repo) |
-   | Repository | `admin-kit` |
-   | Workflow filename | `ci.yml` |
-   | Environment | (leave blank) |
-
-   This replaces the long-lived `NPM_TOKEN` — the workflow gets a short-lived OIDC token at publish time. No secret in GitHub needed.
-
-2. **GitHub repo → Settings → Actions → General → Workflow permissions** → enable **Read and write** (so CI can push the bump commit and tag).
-
-That's it. No `NPM_TOKEN` secret, no 2FA bypass. The package will publish with a **verified provenance attestation** (the green "Verified" badge on the npm page), proving it was built from the exact commit shown.
-
-### How the bump size is chosen
-
-For each push to `main`, CI reads the head commit message and picks a bump level. Precedence (first match wins):
-
-1. **`workflow_dispatch` input** — the dropdown you pick in the UI overrides everything.
-2. **Explicit tag in the message:** `[major]`, `[minor]`, or `[patch]` anywhere in the commit.
-3. **Conventional commits:**
-   - `feat!: ...` or contains `BREAKING CHANGE` → **major**
-   - `feat: ...` / `feat(scope): ...` → **minor**
-4. **Default** → **patch**
-
-Examples:
-
-| Commit message                              | Bump   |
-| ------------------------------------------- | ------ |
-| `fix: race in sidebar collapse`             | patch  |
-| `chore: bump deps`                          | patch  |
-| `feat: add OAuth callback handler`          | minor  |
-| `feat(auth): GitHub provider`               | minor  |
-| `feat!: drop AdminProvider props`           | major  |
-| `refactor: rewrite layout [minor]`          | minor (override) |
-| `docs: tweak readme [skip release]`         | **no release** |
-
-### Opting out per-commit
-
-Include `[skip release]` anywhere in the commit message and that push won't publish. Use it for README/docs/CI tweaks that shouldn't mint a version.
-
-### The other two paths (kept as escape hatches)
-
-- **Manual tag** — `git tag v0.2.0 && git push origin v0.2.0`. CI syncs `package.json` to the tag and publishes. Useful if you bumped locally with [`./scripts/release.sh`](scripts/release.sh) or want to ship an exact version.
-- **Manual dispatch** — Actions tab → `ci` → **Run workflow** → pick the bump. Has a `dry_run` toggle for rehearsals.
-
-In all three paths the **git tag is the source of truth**; `package.json` version in `main` can lag behind the latest npm version when CI publishes from a tag without committing back.
-
-### Loop prevention
-
-CI's release commit message is `chore(release): vX.Y.Z [skip ci]`. GitHub honors `[skip ci]` and won't re-trigger the workflow. As a belt-and-suspenders measure, the `release-on-push` job also has an `if:` that skips messages starting with `chore(release):` — so even if `[skip ci]` is stripped somehow, the loop still can't form.
-
-## What gets pushed where
-
-Two separate allowlists control this — don't conflate them.
-
-**Git (`.gitignore`)** — what we *commit* to the repo:
-
-| Tracked in git              | Ignored in git                                      |
-| --------------------------- | --------------------------------------------------- |
-| `src/**`                    | `node_modules/`, `dist/`, `.next/`, `.cache/`       |
-| `package.json`, `tsconfig.json`, `tsup.config.ts` | `*.log`, `.env`, `.env.*` (except `.env.example`) |
-| `scripts/**`, `examples/**` (source only) | `examples/*/node_modules`, `examples/*/.next` |
-| `README.md`, `CHANGELOG.md`, `LICENSE` | `coverage/`, `.eslintcache`, `*.tsbuildinfo`  |
-
-`dist/` is intentionally **not** committed — it's built fresh in CI and shipped
-to npm only.
-
-**npm (`files` in `package.json`)** — what we *publish* to the registry:
-
-```json
-"files": ["dist", "README.md", "LICENSE"]
+```bash
+./tool/version.py current         # newest tag
+./tool/version.py stage           # alpha | beta | rc | lts | stable | none
+./tool/version.py list            # every release tag, oldest first
+./tool/version.py next beta       # what `release.sh beta` would create
+./tool/version.py notes           # release notes for the current tag
+./tool/version.py check           # tag, package.json and HEAD all agree?
 ```
 
-That's a whitelist, so consumers only download `dist/`, the README, and the
-LICENSE. Source `.ts` files, tests, scripts, and configs **never** go to npm.
-We don't use `.npmignore` (the `files` field is single-source-of-truth — using
-both invites drift). Run `npm pack --dry-run` to preview the exact tarball
-contents before publishing.
+`next` computes from the higher of the newest tag and `package.json`, so a
+version already on the registry can never be proposed again. That case is real
+here: `v0.1.8` was published without its tag ever being pushed, so the newest
+tag reads `v0.1.7` while npm reads `0.1.8`.
+
+### CI
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml):
+
+| Trigger | What happens |
+| --- | --- |
+| Push to `main` | `verify` only |
+| Pull request | `verify` only |
+| Push of a `v*.*.*` tag | `verify`, then publish with provenance and a GitHub release |
+
+Publishing uses npm trusted publishing (OIDC — no `NPM_TOKEN`). There is
+deliberately **no** auto-bump-on-push job: it cannot coexist with tag-driven
+versioning, since a job that bumps `package.json` on every commit immediately
+disagrees with the tool that computes versions from tags.
 
 ## License
 

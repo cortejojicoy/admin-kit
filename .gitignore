@@ -41,7 +41,17 @@ coverage/
 # package manager artifacts
 .pnpm-store/
 
-# local examples sandbox (if you scaffold one later)
+# examples: source and generated docs are committed; build output is not
 examples/*/node_modules
 examples/*/.next
 examples/*/dist
+examples/*/next-env.d.ts
+examples/*/tsconfig.tsbuildinfo
+
+# local credentials scratch file — never commit
+creds
+creds.*
+
+# python bytecode from tool/
+__pycache__/
+*.pyc
