@@ -1,6 +1,6 @@
 {
   "name": "@cortejojicoy/admin-kit",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Next.js admin toolkit \u2014 pluggable CRUD endpoints, a three-axis access model (catalog/entitlement/permission), launcher + sidebar panels, and a markdown docs generator.",
   "type": "module",
   "main": "./dist/index.cjs",

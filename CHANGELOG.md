@@ -11,6 +11,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+-
+
+### Changed
+-
+
+### Fixed
+-
+
+## [0.2.0] - 2026-09-08
+
 ### Fixed — shipping bugs in 0.1.8
 
 Four defects that all typechecked cleanly and all reached the registry. An
