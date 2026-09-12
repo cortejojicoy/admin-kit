@@ -1,0 +1,76 @@
+name: pages
+
+# Builds and deploys the documentation site in `site/` to GitHub Pages.
+#
+# Kept out of ci.yml deliberately: ci.yml is the publish gate, and a docs
+# deployment must never be able to hold up — or be mistaken for — a release.
+# The site build is dependency-free and runs in milliseconds, so the pull
+# request job below is a cheap way to catch a broken link before it ships.
+#
+# One-time setup: repository Settings → Pages → Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+      - 'package.json'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build. On a pull request this is the whole job: the build fails on a broken
+  # internal link, which is the failure this catches before it reaches readers.
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # A GitHub project page is served from /<repo>/, so every internal link
+      # is written with that prefix. Locally SITE_BASE defaults to '/'.
+      - name: Build the site
+        run: node site/build.mjs
+        env:
+          SITE_BASE: /${{ github.event.repository.name }}/
+
+      - name: Upload artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  # ---------------------------------------------------------------------------
+  # Deploy. Pushes to main only.
+  # ---------------------------------------------------------------------------
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
