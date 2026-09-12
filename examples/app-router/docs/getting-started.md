@@ -2,7 +2,7 @@
 
 # Getting started
 
-How to mount Northwind in this codebase.
+How to mount Axiomkit in this codebase.
 
 ## 1. Install and import the stylesheet
 

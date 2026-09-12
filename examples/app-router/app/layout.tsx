@@ -8,7 +8,7 @@ import '@cortejojicoy/admin-kit/styles.css'
 import './globals.css'
 
 export const metadata = {
-  title: 'Northwind',
+  title: 'Axiomkit',
   description: 'admin-kit example — App Router',
 }
 

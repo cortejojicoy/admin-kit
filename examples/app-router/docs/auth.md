@@ -14,7 +14,7 @@ Provider: `jwt`.
 
 ## Session storage
 
-`server-cookie` — the token lives in an `HttpOnly; Secure` cookie named `northwind_session`, set by your login route. Script cannot read it, so an XSS cannot exfiltrate the session.
+`server-cookie` — the token lives in an `HttpOnly; Secure` cookie named `axiomkit_session`, set by your login route. Script cannot read it, so an XSS cannot exfiltrate the session.
 
 ## Routes
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   return new Response(JSON.stringify({ ok: true }), {
     headers: {
       'Content-Type': 'application/json',
-      'Set-Cookie': sessionCookie(token, { name: 'northwind_session', maxAge: 60 * 60 * 8 }),
+      'Set-Cookie': sessionCookie(token, { name: 'axiomkit_session', maxAge: 60 * 60 * 8 }),
     },
   })
 }

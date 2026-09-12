@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     {
       headers: {
         'Set-Cookie': sessionCookie(token, {
-          name: 'northwind_session',
+          name: 'axiomkit_session',
           maxAge: 60 * 60 * 8,
           secure: process.env.NODE_ENV === 'production',
         }),

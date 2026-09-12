@@ -8,6 +8,6 @@ export const serverConfig = defineAdminServerConfig({
   jwt: {
     secret: process.env.JWT_SECRET ?? 'example-development-secret-not-for-production',
     algorithms: ['HS256'],
-    cookieName: 'northwind_session',
+    cookieName: 'axiomkit_session',
   },
 })

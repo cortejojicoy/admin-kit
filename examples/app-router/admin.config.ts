@@ -7,7 +7,7 @@ import { defineAdminConfig } from '@cortejojicoy/admin-kit'
  */
 export const adminConfig = defineAdminConfig({
   app: {
-    name: 'Northwind',
+    name: 'Axiomkit',
     logoIconKey: 'grid',
     description: 'Everything you run today, in one place.',
   },
@@ -18,7 +18,7 @@ export const adminConfig = defineAdminConfig({
     jwt: {
       endpoints: { login: '/api/auth/login', me: '/api/auth/me', logout: '/api/auth/logout' },
       tokenStorage: 'server-cookie',
-      cookieName: 'northwind_session',
+      cookieName: 'axiomkit_session',
     },
     loginPage: { path: '/login', subtitle: 'Use any email with the password "demo".' },
     publicRoutes: ['/login', '/api/auth'],
@@ -131,6 +131,6 @@ export const adminConfig = defineAdminConfig({
 
   panels: {
     app: { home: '/dashboard', dockOrder: ['INBOX', 'SEARCH'] },
-    admin: { basePath: '/admin', title: 'Northwind admin' },
+    admin: { basePath: '/admin', title: 'Axiomkit admin' },
   },
 })

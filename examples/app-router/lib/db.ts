@@ -11,10 +11,10 @@ export interface Person {
 }
 
 export const people: Person[] = [
-  { id: '1', name: 'Ada Okonjo', email: 'ada@northwind.test', role: 'admin', active: true },
-  { id: '2', name: 'Blaise Moreau', email: 'blaise@northwind.test', role: 'manager', active: true },
-  { id: '3', name: 'Chen Wei', email: 'chen@northwind.test', role: 'staff', active: true },
-  { id: '4', name: 'Dalia Haddad', email: 'dalia@northwind.test', role: 'staff', active: false },
+  { id: '1', name: 'Ada Okonjo', email: 'ada@axiomkit.test', role: 'admin', active: true },
+  { id: '2', name: 'Blaise Moreau', email: 'blaise@axiomkit.test', role: 'manager', active: true },
+  { id: '3', name: 'Chen Wei', email: 'chen@axiomkit.test', role: 'staff', active: true },
+  { id: '4', name: 'Dalia Haddad', email: 'dalia@axiomkit.test', role: 'staff', active: false },
 ]
 
 let nextId = people.length + 1

@@ -9,7 +9,7 @@ Every value this install sets, and every default it inherits.
 ```json
 {
   "app": {
-    "name": "Northwind",
+    "name": "Axiomkit",
     "logoIconKey": "grid",
     "description": "Everything you run today, in one place."
   },
@@ -23,11 +23,11 @@ Every value this install sets, and every default it inherits.
         "logout": "/api/auth/logout"
       },
       "tokenStorage": "«redacted»",
-      "cookieName": "northwind_session"
+      "cookieName": "axiomkit_session"
     },
     "loginPage": {
       "path": "/login",
-      "title": "Sign in to Northwind",
+      "title": "Sign in to Axiomkit",
       "subtitle": "Use any email with the password \"demo\"."
     },
     "publicRoutes": [
@@ -254,7 +254,7 @@ Every value this install sets, and every default it inherits.
       "enabled": true,
       "basePath": "/admin",
       "backTo": "/dashboard",
-      "title": "Northwind admin"
+      "title": "Axiomkit admin"
     }
   },
   "layout": {

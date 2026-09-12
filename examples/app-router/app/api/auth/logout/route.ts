@@ -6,7 +6,7 @@ export function POST() {
     {
       headers: {
         'Set-Cookie': clearSessionCookie({
-          name: 'northwind_session',
+          name: 'axiomkit_session',
           secure: process.env.NODE_ENV === 'production',
         }),
       },
