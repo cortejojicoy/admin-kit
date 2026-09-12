@@ -55,3 +55,6 @@ creds.*
 # python bytecode from tool/
 __pycache__/
 *.pyc
+
+# built documentation site (site/ is the source; CI builds and deploys it)
+site/dist/

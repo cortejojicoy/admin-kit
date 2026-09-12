@@ -95,6 +95,8 @@
     "test:watch": "vitest",
     "test:tool": "python3 -m unittest discover -s tool -p 'test_*.py'",
     "smoke": "node scripts/smoke.mjs",
+    "site": "node --env-file-if-exists=.env site/build.mjs",
+    "site:dev": "node --env-file-if-exists=.env site/build.mjs --serve",
     "check:package": "publint --strict && attw --pack . --profile node16 --exclude-entrypoints styles.css",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run test:tool && npm run build && npm run smoke && npm run check:package",
     "clean": "rm -rf dist",
@@ -180,7 +182,7 @@
   "bugs": {
     "url": "https://github.com/cortejojicoy/admin-kit/issues"
   },
-  "homepage": "https://github.com/cortejojicoy/admin-kit#readme",
+  "homepage": "https://cortejojicoy.github.io/admin-kit/",
   "bin": {
     "admin-kit": "./dist/cli.js"
   }
