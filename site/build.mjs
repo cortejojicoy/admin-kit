@@ -26,7 +26,7 @@ import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { renderMarkdown } from './lib/markdown.mjs'
-import { editor, escHtml, icon, shell, sidebar, terminal, toc } from './lib/layout.mjs'
+import { editor, escAttr, escHtml, icon, shell, sidebar, terminal, toc } from './lib/layout.mjs'
 import {
   AXES,
   CONFIG_SAMPLE,
@@ -211,15 +211,40 @@ function demoButton() {
   )} Try the demo</a>`
 }
 
-/** The seeded logins, so a visitor can sign in without hunting for them. */
+/**
+ * The seeded logins, so a visitor can sign in without hunting for them.
+ *
+ * Three rows rather than a boxed note: the accounts *are* the demo's argument —
+ * one build, three applications — so they are set as a small table of roles and
+ * what each one resolves to, not as a footnote to the button.
+ *
+ * Each row copies its email, because the kit's login form takes no `?email=`
+ * prefill and a row that linked to `/login` would be three links to the same
+ * empty form. Copy is the honest affordance: it hands over the one thing the
+ * form actually needs.
+ */
 function demoHint() {
   if (!SITE.demo) return ''
-  const accounts = DEMO.accounts
-    .map((a) => `<li><code>${escHtml(a.email)}</code> <span>${escHtml(a.note)}</span></li>`)
+  const rows = DEMO.accounts
+    .map(
+      (a) => `<li>
+      <button class="cred" type="button" data-copy="${escAttr(a.email)}"
+              aria-label="Copy ${escAttr(a.email)} to the clipboard">
+        <span class="cred-role">${escHtml(a.role)}</span>
+        <span class="cred-email">${escHtml(a.email)}</span>
+        <span class="cred-sees">${escHtml(a.sees)}</span>
+        <span class="cred-action" aria-hidden="true">Copy</span>
+      </button>
+    </li>`,
+    )
     .join('')
-  return `<div class="demo-hint">
-    <p>Sign in to the demo with any of these and the password <code>${escHtml(DEMO.password)}</code>:</p>
-    <ul>${accounts}</ul>
+
+  return `<div class="creds">
+    <p class="creds-lead">
+      Three accounts, one password &mdash; <code>${escHtml(DEMO.password)}</code>.
+      The same build, resolved three ways.
+    </p>
+    <ul>${rows}</ul>
   </div>`
 }
 

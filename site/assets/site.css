@@ -463,39 +463,128 @@ kbd {
   box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-.demo-hint {
-  margin: 1.5rem auto 0;
-  max-width: 34rem;
-  padding: 0.85rem 1.1rem;
-  border: 1px dashed color-mix(in srgb, var(--border) 85%, var(--accent));
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--bg-soft) 70%, transparent);
+/*
+ * The seeded logins.
+ *
+ * No box. A boxed note reads as an aside, and these accounts are the demo's
+ * whole argument — so they are set as a small rule-separated table directly
+ * under the buttons, carrying their own weight through alignment rather than
+ * through chrome. The hairlines are the only decoration, and they are the same
+ * ones the docs tables use.
+ */
+.creds {
+  max-width: 44rem;
+  margin: 2rem auto 0;
   text-align: start;
 }
 
-.demo-hint p {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-soft);
+.creds-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.83rem;
+  color: var(--text-faint);
+  text-align: center;
 }
 
-.demo-hint ul {
+.creds-lead code {
+  color: var(--text-soft);
+  font-size: 0.95em;
+}
+
+.creds ul {
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.creds li { border-bottom: 1px solid var(--border); }
+
+/*
+ * The row is the control. One target per account rather than a row plus a
+ * separate copy button: three visible buttons under the hero's own two would
+ * put five competing affordances in the first screen.
+ */
+.cred {
   display: grid;
-  gap: 0.3rem;
-}
-
-.demo-hint li {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: 4.75rem minmax(0, auto) 1fr auto;
   align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.83rem;
+  gap: 0.35rem 1rem;
+  width: 100%;
+  padding: 0.7rem 0.6rem;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background 0.14s ease;
 }
 
-.demo-hint li span { color: var(--text-faint); }
+.cred:hover { background: var(--bg-soft); }
+
+.cred:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The role is what the config keys on, so it leads and it is monospaced. */
+.cred-role {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.cred-email {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.cred-sees {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  text-wrap: pretty;
+}
+
+/*
+ * Present only once the row is under the pointer or keyboard focus — the
+ * affordance a visitor needs at the moment they need it, and nothing to read
+ * past on the way down the list.
+ */
+.cred-action {
+  justify-self: end;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--accent-text);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.cred:hover .cred-action,
+.cred:focus-visible .cred-action { opacity: 1; }
+
+/* After a copy the label stays put, so the row confirms without moving. */
+.cred.done .cred-action { opacity: 1; }
+
+@media (hover: none) {
+  .cred-action { opacity: 1; }
+}
+
+/*
+ * Narrow: role and email keep the first line, the consequence gets the second.
+ * The copy label goes — the whole row is still the target on touch.
+ */
+@media (max-width: 48rem) {
+  .cred {
+    grid-template-columns: 4.75rem 1fr;
+    gap: 0.2rem 0.75rem;
+  }
+  .cred-sees { grid-column: 2; }
+  .cred-action { display: none; }
+}
 
 /* -------------------------------- bands --------------------------------- */
 
@@ -1113,16 +1202,15 @@ tbody tr:last-child td { border-bottom: none; }
   display: block;
   padding: 0.3rem 0.7rem;
   border-radius: 7px;
-  border-inline-start: 2px solid transparent;
   color: var(--text-soft);
   font-size: 0.9rem;
   text-decoration: none;
 }
 .nav-group a:hover { background: var(--bg-sunk); color: var(--text); }
 
+/* Flat: the tint and the weight carry the current page, with no marker rule. */
 .nav-group a[aria-current] {
   background: var(--accent-soft);
-  border-inline-start-color: var(--accent);
   color: var(--accent-text);
   font-weight: 550;
 }

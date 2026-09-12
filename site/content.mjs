@@ -27,13 +27,32 @@ export const SITE = {
   demo: process.env.SITE_DEMO_URL ?? null,
 }
 
-/** Credentials the demo seeds, surfaced next to the button. */
+/**
+ * Credentials the demo seeds, surfaced next to the button.
+ *
+ * `sees` is not marketing copy — it is what `examples/app-router/admin.config.ts`
+ * actually resolves to for that role, counted in tiles because the launcher is
+ * the first thing a visitor lands on. Keep the two in step: if a grant changes
+ * there, the number here is wrong and the demo contradicts its own front page.
+ */
 export const DEMO = {
   password: 'demo',
   accounts: [
-    { email: 'ada@axiomkit.test', role: 'admin', note: 'sees everything, including the admin panel' },
-    { email: 'blaise@axiomkit.test', role: 'manager', note: 'may edit users but not delete them' },
-    { email: 'chen@axiomkit.test', role: 'staff', note: 'read-only' },
+    {
+      email: 'ada@axiomkit.test',
+      role: 'admin',
+      sees: '4 tiles, both dock stations, the admin panel',
+    },
+    {
+      email: 'blaise@axiomkit.test',
+      role: 'manager',
+      sees: '3 tiles, no dock, no admin panel — edits people but cannot delete them',
+    },
+    {
+      email: 'chen@axiomkit.test',
+      role: 'staff',
+      sees: '1 tile, read-only — every write comes back 403',
+    },
   ],
 }
 

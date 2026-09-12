@@ -65,6 +65,53 @@
     })
   })
 
+  /* --------------------------- demo credentials -------------------------- */
+
+  /*
+   * Each account row on the landing page copies its own email. The kit's login
+   * form takes no `?email=` prefill, so handing over the address is the most a
+   * link could honestly do — and this does it without leaving the page.
+   */
+  document.querySelectorAll('.cred').forEach(function (row) {
+    var label = row.querySelector('.cred-action')
+
+    row.addEventListener('click', function () {
+      var email = row.getAttribute('data-copy')
+      if (!email || !label) return
+
+      var write = navigator.clipboard ? navigator.clipboard.writeText(email) : Promise.reject()
+
+      write.then(
+        function () {
+          label.textContent = 'Copied'
+          row.classList.add('done')
+          setTimeout(function () {
+            label.textContent = 'Copy'
+            row.classList.remove('done')
+          }, 1600)
+        },
+        function () {
+          // No clipboard (insecure origin, or permission refused): select the
+          // address instead, so the keyboard shortcut still has something to
+          // act on rather than the row failing silently.
+          var email_ = row.querySelector('.cred-email')
+          if (!email_ || !window.getSelection) return
+          var range = document.createRange()
+          range.selectNodeContents(email_)
+          var selection = window.getSelection()
+          selection.removeAllRanges()
+          selection.addRange(range)
+          label.textContent = 'Press \u2318C'
+          row.classList.add('done')
+          setTimeout(function () {
+            label.textContent = 'Copy'
+            row.classList.remove('done')
+          }, 2400)
+        },
+      )
+    })
+  })
+
   /* ---------------------------- editor tabs ----------------------------- */
 
   document.querySelectorAll('.editor').forEach(function (ed) {
